@@ -1,0 +1,1 @@
+export type Gast = { id: string, admin: boolean, naam: string | undefined }
