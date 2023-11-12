@@ -17,8 +17,10 @@ server.listen(
 )
 
 import type { Gast } from "./kwispel-client/src/lib/Gast";
+import { standaardKwis, type Kwis } from "./kwispel-client/src/lib/Kwis";
 
-let gasten: Gast[] = []
+let gasten: Gast[] = [];
+let kwis: Kwis = standaardKwis;
 
 function ageer<T>(id: string, functie: (gast: Gast) => T): T {
     let matchendeIds = gasten.filter((gast) => gast.id === id);
@@ -39,7 +41,8 @@ function ageerAdmin<T>(functie: (gast: Gast) => T): T {
 }
 
 function stuurNaarAdmin(ev: string, ...args: any[]) {
-    ageerAdmin((admin) => {io.to(admin.id).emit(ev, ...args)});
+    ageerAdmin((admin) => { io.to(admin.id).emit(ev, ...args) });
+    console.log(`   [naar admin]: ${ev} met args ${args}`)
 }
 
 
@@ -51,14 +54,14 @@ io.on('connection', (socket) => {
     // CONNECTIELOGICA
     console.log(`[nieuwe verbinding] ${socket.id.substring(16)}`);
     if (gasten.length === 0) {
-        gasten.push({ id: socket.id, admin: true, naam: "ADMIN" });
+        gasten.push({ id: socket.id, admin: true, naam: "ADMIN", huidigeAntwoord: undefined });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
     } else {
         if (idAanwezig(socket.id)) {
             console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
         } else {
-            gasten.push({ id: socket.id, admin: false, naam: undefined });
+            gasten.push({ id: socket.id, admin: false, naam: undefined, huidigeAntwoord: undefined });
             stuurNaarAdmin("nieuweSpelerKennisgeving", socket.id);
             console.log(' ↳ [speler geregistreerd]');
         }
@@ -86,4 +89,32 @@ io.on('connection', (socket) => {
         stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
         callback("naam geregistreerd.")
     })
+
+    // KWIS START
+    socket.on("startKwis", () => {
+        console.log("[kwis start binnengekregen]")
+        kwis.fase = "antwoordenVerzamelen";
+        io.emit("kwisUpdate", kwis);
+        console.log("[kwisstatus veranderd] kwis gestart");
+    })
+
+    socket.on("verstuurAntwoord", (huidigAntwoord) => {
+        console.log(`[antwoord gekregen]: ${socket.id.substring(16)} gaf ${huidigAntwoord}`)
+        console.log(`${huidigAntwoord[0]}`)
+        ageer(socket.id, (gast) => { gast.huidigeAntwoord = huidigAntwoord });
+        stuurNaarAdmin("spelerAntwoordKennisgeving", socket.id, huidigAntwoord);
+
+        if (gasten.filter((e) => !e.admin).every((e) => e.huidigeAntwoord !== undefined)) {
+            kwis.fase = "antwoordenPresenteren";
+            io.emit("kwisUpdate", kwis);
+        }
+    })
 });
+
+for await (const line of console) {
+    try {
+        console.log(eval?.(line));
+    } catch (e) {
+        console.error(e)
+    }
+}
