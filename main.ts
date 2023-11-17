@@ -109,12 +109,24 @@ io.on('connection', (socket) => {
             io.emit("kwisUpdate", kwis);
         }
     })
+
+    socket.on("klaarVoorStemmen", (antwoorden: any[]) => {
+        console.log("[klaar voor stemming] antwoorden: ", antwoorden)
+        kwis.fase = "stemmen";
+
+        io.emit("antwoorden", antwoorden);
+        io.emit("kwisUpdate", kwis)
+    })
+
+    socket.on("stem", (idx: number) => {
+        stuurNaarAdmin("stemKennisgeving", socket.id, idx)
+    })
 });
 
-for await (const line of console) {
-    try {
-        console.log(eval?.(line));
-    } catch (e) {
-        console.error(e)
-    }
-}
+// for await (const line of console) {
+//     try {
+//         console.log(eval?.(line));
+//     } catch (e) {
+//         console.error(e)
+//     }
+// }
