@@ -6,7 +6,7 @@
 
     import { io } from "socket.io-client";
     import type { Gast } from "$lib/Gast";
-    import { standaardKwis, type Kwis } from "$lib/Kwis";
+    import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "$lib/Kwis";
     import type { Antwoord } from "$lib/Antwoord";
 
     $: spelers = [] as Gast[];
@@ -54,7 +54,10 @@
 
     socket.on("nieuweSpelerKennisgeving", (id: string) => {
         console.log("nieuwe speler gejoind");
-        spelers = [...spelers, { admin: false, naam: undefined, id }];
+        spelers = [
+            ...spelers,
+            { admin: false, naam: undefined, punten: 0, id },
+        ];
     });
 
     $: teamNaamGekozen = false;
@@ -83,7 +86,8 @@
 
         if (
             nieuweStatus.fase === "antwoordenPresenteren" &&
-            lokaleKwis.fase === "antwoordenVerzamelen" && admin
+            lokaleKwis.fase === "antwoordenVerzamelen" &&
+            admin
         ) {
             antwoordenTonenInterval = setInterval(() => {
                 let eersteOnzichtbaar = antwoorden.findIndex((a) => !a.getoond);
@@ -101,6 +105,10 @@
             gestemd = false;
         }
 
+        if (nieuweStatus.fase === "antwoordenVerzamelen") {
+            antwoordVerstuurd = false;
+        }
+
         lokaleKwis = nieuweStatus;
         tekstPlaceholders = extraheerPlaceholders();
     });
@@ -115,6 +123,26 @@
 
         let antwoordIdx = antwoorden.findIndex((a) => a.spelerId == id);
         antwoorden[antwoordIdx].stemmen = antwoorden[antwoordIdx].stemmen + 1;
+
+        if (
+            antwoorden
+                .map((a) => a.stemmen)
+                .reduce((prev, current) => prev + current) == spelers.length
+        ) {
+            console.log("genoeg stemmen bereikt; iedereen heeft gestemd.");
+            for (let antwoord of antwoorden) {
+                spelers = ageer(antwoord.spelerId, (g) => {
+                    g.punten += PUNTEN_PER_STEM * antwoord.stemmen;
+                    return spelers;
+                });
+            }
+            socket.emit("puntentelling");
+        }
+    });
+
+    $: leaderboardInfo = [] as Gast[]; // enkel te gebruiken in speler als leaderboard info
+    socket.on("scorebord", (scorebord) => {
+        leaderboardInfo = scorebord;
     });
 
     function registreerNaam() {
@@ -172,13 +200,21 @@
         gestemd = true;
         socket.emit("stem", id);
     }
+
+    function volgendeVraag() {
+        antwoorden = [];
+        socket.emit("volgendeVraag");
+    }
+
+    function eindigKwis() {
+        socket.emit("eindigKwis");
+    }
 </script>
 
-<div class="bg-blue-100 w-screen h-screen overflow-hidden p-16">
+<div class="bg-blue-100 w-screen min-h-screen overflow-hidden p-16">
     <h1 class="text-3xl font-bold mb-6">kwispel</h1>
     {#if actieveVerbinding}
-        <p class="mb-4">Verbonden met de spelserver: {socket.id}</p>
-
+        <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
         {#if admin}
             {#if lokaleKwis.fase == "nogNietBegonnen"}
                 <h2 class="text-xl">Welkom, admin.</h2>
@@ -246,18 +282,54 @@
                                         {vulTemplateIn(antwoord.data)}
                                     </p>
                                 {/if}
-                                <div
-                                    class="bg-blue-300 p-3 min-w-full text-lg font-bold"
-                                >
-                                    {antwoord.stemmen}
-                                    {antwoord.stemmen === 1
-                                        ? " stem"
-                                        : " stemmen"}
-                                </div>
                             </div>
                         {/if}
                     {/each}
                 </div>
+            {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
+                <div class="flex flex-row min-w-full gap-12 mb-12 justify-stretch">
+                    <div class="rounded-md bg-white p-12 flex flex-col gap-3">
+                        <h2 class="text-2xl font-bold text-blue-800 mb-6">
+                            Antwoorden
+                        </h2>
+                        {#each antwoorden as antwoord}
+                            <div class="bg-amber-200 p-4 rounded-md">
+                                <p class="text-lg font-bold mb-3">
+                                    {ageer(antwoord.spelerId, (g) => g.naam)}
+                                </p>
+                                {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                                    {vulTemplateIn(antwoord.data)}
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                    <div
+                        class="rounded-md bg-white p-12 flex flex-col gap-3"
+                    >
+                        <h2 class="text-2xl font-bold text-blue-800 mb-6">
+                            Leaderboard
+                        </h2>
+                        {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
+                            <div class="bg-amber-200 p-4 rounded-md">
+                                <p>{speler.naam}: {speler.punten}</p>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+                <button
+                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all min-w-full"
+                    on:click={lokaleKwis.vragen.length - 1 ==
+                    lokaleKwis.huidigeVraagIdx
+                        ? () => {
+                              eindigKwis();
+                          }
+                        : () => {
+                              volgendeVraag();
+                          }}
+                    >{lokaleKwis.vragen.length - 1 == lokaleKwis.huidigeVraagIdx
+                        ? "Beëindig quiz"
+                        : "Volgende vraag"}</button
+                >
             {/if}
         {:else if !teamNaamGekozen}
             <div
@@ -302,7 +374,7 @@
                     >
                 </div>
             {/if}
-        {:else if lokaleKwis.fase == "stemmen" || lokaleKwis.fase == "stemresulatenPresenteren"}
+        {:else if lokaleKwis.fase == "stemmen"}
             {#if !gestemd}
                 <div class="flex flex-col gap-4">
                     {#each antwoorden as antwoord}
@@ -328,6 +400,25 @@
             {:else}
                 <p>Bedankt voor je stem! We wachten nog op de rest.</p>
             {/if}
+        {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
+            <h2 class="text-2xl font-bold text-blue-800 mb-6">
+                Leaderboard
+            </h2>
+            <div class="flex flex-col gap-6 min-w-full justify-stretch">
+                {#each leaderboardInfo.toSorted((a, b) => b.punten - a.punten) as speler}
+                    {#if speler.id == socket.id}
+                        <div class="bg-amber-200 p-4 rounded-md">
+                            <p class="font-bold">
+                                {speler.naam}: {speler.punten}
+                            </p>
+                        </div>
+                    {:else}
+                        <div class="bg-white p-2 rounded-md">
+                            <p>{speler.naam}: {speler.punten}</p>
+                        </div>
+                    {/if}
+                {/each}
+            </div>
         {/if}
     {:else}
         <p>

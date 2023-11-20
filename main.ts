@@ -17,8 +17,9 @@ server.listen(
 )
 
 import type { Gast } from "./kwispel-client/src/lib/Gast";
-import { standaardKwis, type Kwis } from "./kwispel-client/src/lib/Kwis";
+import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "./kwispel-client/src/lib/Kwis";
 import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
+import { sleep } from "bun";
 
 let gasten: Gast[] = [];
 let kwis: Kwis = standaardKwis;
@@ -56,14 +57,14 @@ io.on('connection', (socket) => {
     // CONNECTIELOGICA
     console.log(`[nieuwe verbinding] ${socket.id.substring(16)}`);
     if (gasten.length === 0) {
-        gasten.push({ id: socket.id, admin: true, naam: "ADMIN" });
+        gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0 });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
     } else {
         if (idAanwezig(socket.id)) {
             console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
         } else {
-            gasten.push({ id: socket.id, admin: false, naam: undefined });
+            gasten.push({ id: socket.id, admin: false, naam: undefined, punten: 0 });
             stuurNaarAdmin("nieuweSpelerKennisgeving", socket.id);
             console.log(' ↳ [speler geregistreerd]');
         }
@@ -122,6 +123,32 @@ io.on('connection', (socket) => {
         let antwoordIdx = antwoorden.findIndex((a) => a.spelerId == id);
         antwoorden[antwoordIdx].stemmen = antwoorden[antwoordIdx].stemmen + 1;
         stuurNaarAdmin("stemKennisgeving", id)
+    })
+
+    socket.on("puntentelling", () => {
+        for (let antwoord of antwoorden) {
+            gasten = ageer(antwoord.spelerId, (g) => {
+                g.punten += PUNTEN_PER_STEM * antwoord.stemmen;
+                return gasten;
+            });
+        }
+        console.log("[puntentelling]")
+        kwis.fase = "stemresulatenPresenteren";
+        io.emit("kwisUpdate", kwis);
+        io.emit("scorebord", gasten.filter((e) => !e.admin))
+    })
+
+    socket.on("volgendeVraag", () => {
+        console.log("[volgende vraag]")
+        kwis.fase = "antwoordenVerzamelen";
+        kwis.huidigeVraagIdx += 1;
+        antwoorden = []
+        io.emit("kwisUpdate", kwis);
+    })
+
+    socket.on("eindigKwis", () => {
+        kwis.fase = "beëindigd"
+        console.log("[kwis klaar]")
     })
 });
 

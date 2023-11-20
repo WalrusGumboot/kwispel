@@ -10,12 +10,16 @@ export type Kwis = {
     "antwoordenVerzamelen" |
     "antwoordenPresenteren" |
     "stemmen" |
-    "stemresulatenPresenteren"
+    "stemresulatenPresenteren" |
+    "beëindigd"
 }
+
+export const PUNTEN_PER_STEM = 100;
 
 export const standaardKwis: Kwis = {
     vragen: [
-        { soort: "tekst", tekst: "De salamanders van Vaes be like: 'Senior, commilitones, laat ons drinken op {}!'" }
+        { soort: "tekst", tekst: "De salamanders van Vaes be like: 'Senior, commilitones, laat ons drinken op {}!'" },
+        { soort: "tekst", tekst: "Uw moeder is zo {} dat ze {}." }
     ],
     huidigeVraagIdx: 0,
     fase: "nogNietBegonnen"
