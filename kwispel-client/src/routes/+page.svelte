@@ -1,14 +1,4 @@
 <script lang="ts">
-    function vrijheidGelijkheidEnZusterschap<T>(a: T[], b: T[]): boolean {
-        for (let i = 0; i < a.length; i++) {
-            if (a[i] != b[i]) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     import { fly } from "svelte/transition";
 
     import loadingImg from "../assets/loading.gif";
@@ -17,6 +7,7 @@
     import { io } from "socket.io-client";
     import type { Gast } from "$lib/Gast";
     import { standaardKwis, type Kwis } from "$lib/Kwis";
+    import type { Antwoord } from "$lib/Antwoord";
 
     $: spelers = [] as Gast[];
 
@@ -29,7 +20,7 @@
         }
     }
 
-    function vulTemplateIn(antwoord: string[]): string {
+    function vulTemplateIn(antwoord: string[] | string): string {
         let templateTekst = lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].tekst;
         let antwoordIndex = 0;
         do {
@@ -63,22 +54,8 @@
 
     socket.on("nieuweSpelerKennisgeving", (id: string) => {
         console.log("nieuwe speler gejoind");
-        spelers = [
-            ...spelers,
-            { admin: false, naam: undefined, huidigeAntwoord: undefined, id },
-        ];
+        spelers = [...spelers, { admin: false, naam: undefined, id }];
     });
-
-    socket.on(
-        "spelerAntwoordKennisgeving",
-        (id: string, huidigAntwoord: any) => {
-            console.log(`speler ${id} gaf antwoord ${huidigAntwoord}`);
-            spelers = ageer(id, (speler) => {
-                speler.huidigeAntwoord = huidigAntwoord;
-                return spelers;
-            });
-        }
-    );
 
     $: teamNaamGekozen = false;
     $: teamNaam = "";
@@ -93,8 +70,12 @@
     $: lokaleKwis = standaardKwis;
 
     let antwoordenTonenInterval: NodeJS.Timeout;
+    $: antwoorden = [] as Antwoord[];
 
-    let eigenAntwoord: any;
+    // wordt enkel naar spelers gestuurd, niet de admin
+    socket.on("declareerAntwoorden", (alleAntwoorden: Antwoord[]) => {
+        antwoorden = alleAntwoorden;
+    });
 
     socket.on("kwisUpdate", (nieuweStatus: Kwis) => {
         console.log("kwis update ontvangen");
@@ -102,25 +83,16 @@
 
         if (
             nieuweStatus.fase === "antwoordenPresenteren" &&
-            lokaleKwis.fase === "antwoordenVerzamelen"
+            lokaleKwis.fase === "antwoordenVerzamelen" && admin
         ) {
-            aantalStemmen = Array(spelers.length).fill(-1);
-
             antwoordenTonenInterval = setInterval(() => {
-                let eersteOnzichtbaar = aantalStemmen.indexOf(-1);
+                let eersteOnzichtbaar = antwoorden.findIndex((a) => !a.getoond);
                 if (eersteOnzichtbaar !== -1) {
                     console.log("nieuw antwoord tonen");
-                    aantalStemmen[eersteOnzichtbaar] = 0;
+                    antwoorden[eersteOnzichtbaar].getoond = true;
                 } else {
-                    let teVersturenAntwoorden = Array.from(
-                        spelers.map((speler) => speler.huidigeAntwoord)
-                    );
-
-                    if (teVersturenAntwoorden.length != 0) {
-                        console.log("antwoorden op");
-                        socket.emit("klaarVoorStemmen", teVersturenAntwoorden);
-                        clearInterval(antwoordenTonenInterval);
-                    }
+                    clearInterval(antwoordenTonenInterval);
+                    socket.emit("klaarVoorStemmen");
                 }
             }, 1000);
         }
@@ -133,16 +105,16 @@
         tekstPlaceholders = extraheerPlaceholders();
     });
 
-    $: gestemdeSpelers = [] as string[];
+    socket.on("antwoordKennisgeving", (antwoord: Antwoord) => {
+        console.log("nieuw antwoord binnengekregen");
+        antwoorden = [...antwoorden, antwoord];
+    });
 
-    socket.on("stemKennisgeving", (socketId: string, idx: number) => {
-        console.log("er is gestemd op idx", idx);
-        aantalStemmen[idx] += 1;
-        gestemdeSpelers.push(socketId);
+    socket.on("stemKennisgeving", (id: string) => {
+        console.log("er is gestemd op antwoord van id ", id);
 
-        if (gestemdeSpelers.length === spelers.length) {
-            socket.emit("alleSpelersGestemd");
-        }
+        let antwoordIdx = antwoorden.findIndex((a) => a.spelerId == id);
+        antwoorden[antwoordIdx].stemmen = antwoorden[antwoordIdx].stemmen + 1;
     });
 
     function registreerNaam() {
@@ -160,15 +132,6 @@
 
     let tekstPlaceholders = [] as number[];
     let tekstInvoeren = [] as string[];
-
-    $: antwoordenTeTonen = [] as any[];
-
-    socket.on("antwoorden", (antwoorden) => {
-        console.log("antwoorden ontvangen:", antwoorden);
-        antwoordenTeTonen = antwoorden;
-    });
-
-    let aantalStemmen = [] as number[]; // VOLGORDE MOET OVEREENKOMEN MET DIE VAN DE SPELERS
 
     function extraheerPlaceholders(): number[] {
         let tekst = lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].tekst;
@@ -193,17 +156,21 @@
     function verstuurAntwoord() {
         antwoordVerstuurd = true;
         if (lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst") {
-            eigenAntwoord = tekstInvoeren;
             console.log(tekstInvoeren);
-            socket.emit("verstuurAntwoord", tekstInvoeren);
+            socket.emit("verstuurAntwoord", {
+                getoond: false,
+                spelerId: socket.id,
+                stemmen: 0,
+                data: tekstInvoeren,
+            } satisfies Antwoord);
         }
     }
 
     $: gestemd = false;
 
-    function stem(idx: number) {
+    function stem(id: string) {
         gestemd = true;
-        socket.emit("stem", idx);
+        socket.emit("stem", id);
     }
 </script>
 
@@ -252,9 +219,11 @@
                                 <h3 class="text-xl">{speler.naam}</h3>
                                 <img
                                     class="w-8 aspect-square object-fit"
-                                    src={speler.huidigeAntwoord === undefined
-                                        ? loadingImg
-                                        : doneImg}
+                                    src={antwoorden.some(
+                                        (a) => a.spelerId === speler.id
+                                    )
+                                        ? doneImg
+                                        : loadingImg}
                                     alt={"een laadicoontje"}
                                 />
                             </div>
@@ -263,10 +232,8 @@
                 </div>
             {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
                 <div class="flex flex-col gap-6 min-w-full">
-                    {#each spelers.map((speler, idx) => {
-                        return { sp: speler, i: idx };
-                    }) as speler_en_idx}
-                        {#if aantalStemmen[speler_en_idx.i] >= 0}
+                    {#each antwoorden as antwoord}
+                        {#if antwoord.getoond}
                             <div
                                 class="p-4 text-lg bg-white rounded-md flex flex-col gap-2 min-w-full"
                                 transition:fly={{
@@ -276,16 +243,14 @@
                             >
                                 {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
                                     <p>
-                                        {vulTemplateIn(
-                                            speler_en_idx.sp.huidigeAntwoord
-                                        )}
+                                        {vulTemplateIn(antwoord.data)}
                                     </p>
                                 {/if}
                                 <div
                                     class="bg-blue-300 p-3 min-w-full text-lg font-bold"
                                 >
-                                    {aantalStemmen[speler_en_idx.i]}
-                                    {aantalStemmen[speler_en_idx.i] === 1
+                                    {antwoord.stemmen}
+                                    {antwoord.stemmen === 1
                                         ? " stem"
                                         : " stemmen"}
                                 </div>
@@ -340,22 +305,17 @@
         {:else if lokaleKwis.fase == "stemmen" || lokaleKwis.fase == "stemresulatenPresenteren"}
             {#if !gestemd}
                 <div class="flex flex-col gap-4">
-                    {#each antwoordenTeTonen.map((antwoord, idx) => {
-                        return { ant: antwoord, i: idx };
-                    }) as antwoord_en_idx}
+                    {#each antwoorden as antwoord}
                         {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
                             <button
                                 class="bg-white rounded-md hover:bg-blue-500 text-blue-800 hover:text-white transition-all p-4 disabled:bg-gray-300 disabled:text-gray-800"
-                                disabled={vrijheidGelijkheidEnZusterschap(
-                                    antwoord_en_idx.ant,
-                                    eigenAntwoord
-                                )}
-                                on:click={() => stem(antwoord_en_idx.i)}
+                                disabled={antwoord.spelerId == socket.id}
+                                on:click={() => stem(antwoord.spelerId)}
                             >
                                 <p>
-                                    {vulTemplateIn(antwoord_en_idx.ant)}
+                                    {vulTemplateIn(antwoord.data)}
                                 </p>
-                                {#if vrijheidGelijkheidEnZusterschap(antwoord_en_idx.ant, eigenAntwoord)}
+                                {#if antwoord.spelerId == socket.id}
                                     <p class="text-sm">
                                         Zeg, flauwe plezante, da's uw eigen
                                         antwoord.

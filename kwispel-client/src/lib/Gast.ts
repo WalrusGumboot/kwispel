@@ -1,1 +1,1 @@
-export type Gast = { id: string, admin: boolean, naam: string | undefined, huidigeAntwoord: any | undefined }
+export type Gast = { id: string, admin: boolean, naam: string | undefined }
