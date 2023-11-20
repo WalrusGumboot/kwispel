@@ -15,7 +15,7 @@ export type Kwis = {
 
 export const standaardKwis: Kwis = {
     vragen: [
-        { soort: "tekst", tekst: "De salamanders van Vaes be like: 'Senior, commilitones, laat ons drinken op {} en op {}!'" }
+        { soort: "tekst", tekst: "De salamanders van Vaes be like: 'Senior, commilitones, laat ons drinken op {}!'" }
     ],
     huidigeVraagIdx: 0,
     fase: "nogNietBegonnen"

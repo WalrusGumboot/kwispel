@@ -1,4 +1,14 @@
 <script lang="ts">
+    function vrijheidGelijkheidEnZusterschap<T>(a: T[], b: T[]): boolean {
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     import { fly } from "svelte/transition";
 
     import loadingImg from "../assets/loading.gif";
@@ -28,7 +38,7 @@
                 .shift()!
                 .concat(antwoord[antwoordIndex], delen.join("{}"));
             antwoordIndex++;
-            console.log(delen);
+            //console.log(delen);
         } while (templateTekst.includes("{}"));
 
         return templateTekst;
@@ -84,6 +94,8 @@
 
     let antwoordenTonenInterval: NodeJS.Timeout;
 
+    let eigenAntwoord: any;
+
     socket.on("kwisUpdate", (nieuweStatus: Kwis) => {
         console.log("kwis update ontvangen");
         console.log(nieuweStatus);
@@ -93,20 +105,22 @@
             lokaleKwis.fase === "antwoordenVerzamelen"
         ) {
             aantalStemmen = Array(spelers.length).fill(-1);
+
             antwoordenTonenInterval = setInterval(() => {
                 let eersteOnzichtbaar = aantalStemmen.indexOf(-1);
                 if (eersteOnzichtbaar !== -1) {
                     console.log("nieuw antwoord tonen");
                     aantalStemmen[eersteOnzichtbaar] = 0;
                 } else {
-                    console.log("antwoorden op");
-                    socket.emit(
-                        "klaarVoorStemmen",
-                        Array.from(
-                            spelers.map((speler) => speler.huidigeAntwoord)
-                        )
+                    let teVersturenAntwoorden = Array.from(
+                        spelers.map((speler) => speler.huidigeAntwoord)
                     );
-                    clearInterval(antwoordenTonenInterval);
+
+                    if (teVersturenAntwoorden.length != 0) {
+                        console.log("antwoorden op");
+                        socket.emit("klaarVoorStemmen", teVersturenAntwoorden);
+                        clearInterval(antwoordenTonenInterval);
+                    }
                 }
             }, 1000);
         }
@@ -163,15 +177,15 @@
         let index = 0;
 
         for (let _ in tekst.match(/{}/g)) {
-            console.log("found match, index nu", index);
+            //console.log("found match, index nu", index);
             tekstInvoeren[index] = "";
             placeholders.push(index);
             index++;
         }
 
-        console.log(tekst);
-        console.log(placeholders);
-        console.log(tekstInvoeren);
+        // console.log(tekst);
+        // console.log(placeholders);
+        // console.log(tekstInvoeren);
 
         return placeholders;
     }
@@ -179,6 +193,7 @@
     function verstuurAntwoord() {
         antwoordVerstuurd = true;
         if (lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst") {
+            eigenAntwoord = tekstInvoeren;
             console.log(tekstInvoeren);
             socket.emit("verstuurAntwoord", tekstInvoeren);
         }
@@ -331,14 +346,17 @@
                         {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
                             <button
                                 class="bg-white rounded-md hover:bg-blue-500 text-blue-800 hover:text-white transition-all p-4 disabled:bg-gray-300 disabled:text-gray-800"
-                                disabled={antwoord_en_idx.ant == tekstInvoeren}
+                                disabled={vrijheidGelijkheidEnZusterschap(
+                                    antwoord_en_idx.ant,
+                                    eigenAntwoord
+                                )}
                                 on:click={() => stem(antwoord_en_idx.i)}
                             >
                                 <p>
                                     {vulTemplateIn(antwoord_en_idx.ant)}
                                 </p>
-                                {#if antwoord_en_idx.ant == tekstInvoeren}
-                                    <p>
+                                {#if vrijheidGelijkheidEnZusterschap(antwoord_en_idx.ant, eigenAntwoord)}
+                                    <p class="text-sm">
                                         Zeg, flauwe plezante, da's uw eigen
                                         antwoord.
                                     </p>
