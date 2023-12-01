@@ -423,7 +423,9 @@
     {:else}
         <p>
             Niet verbonden. De spelserver kan offline zijn, of je bent zelf
-            offline. Geen idee tbh.
+            offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl
+            je net in het spel zat, ben je een beetje fucked. Vraag Simeon even
+            om dit te fiksen. Socket-id: {socket.id}.
         </p>
     {/if}
 </div>

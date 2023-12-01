@@ -19,7 +19,6 @@ server.listen(
 import type { Gast } from "./kwispel-client/src/lib/Gast";
 import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "./kwispel-client/src/lib/Kwis";
 import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
-import { sleep } from "bun";
 
 let gasten: Gast[] = [];
 let kwis: Kwis = standaardKwis;
