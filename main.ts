@@ -21,15 +21,25 @@ import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "./kwispel-client/src/
 import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
 
 let gasten: Gast[] = [];
+let weeskinders: Gast[] = []; // spelers wiens oorspronkelijke socketverbinding weg is gevallen
 let kwis: Kwis = standaardKwis;
 let antwoorden: Antwoord[] = [];
+
+class GeenSpelerError extends Error {}
+class MeerdereGastenError extends Error {
+
+}
 
 function ageer<T>(id: string, functie: (gast: Gast) => T): T {
     let matchendeIds = gasten.filter((gast) => gast.id === id);
     if (matchendeIds.length === 1) {
         return functie(matchendeIds[0]);
+    } else if (matchendeIds.length === 0) {
+        console.error(`Wel nogal kaka, geen enkele speler met id ${id} gevonden, maar no worries.`);
+        throw GeenSpelerError
     } else {
-        throw Error(`[ERROR] meerdere gasten met id ${id} gevonden.`);
+        console.error(`[ERROR] meerdere gasten met id ${id} gevonden.`);
+        throw MeerdereGastenError;
     }
 }
 
@@ -59,34 +69,49 @@ io.on('connection', (socket) => {
         gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0 });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
-    } else {
-        if (idAanwezig(socket.id)) {
-            console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
-        } else {
-            gasten.push({ id: socket.id, admin: false, naam: undefined, punten: 0 });
-            stuurNaarAdmin("nieuweSpelerKennisgeving", socket.id);
-            console.log(' ↳ [speler geregistreerd]');
-        }
-    }
+    } 
+    // else {
+    //     if (idAanwezig(socket.id)) {
+    //         console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
+    //     } else {
+    //         gasten.push({ id: socket.id, admin: false, naam: undefined, punten: 0 });
+    //         stuurNaarAdmin("nieuweSpelerKennisgeving", socket.id);
+    //         console.log(' ↳ [speler geregistreerd]');
+    //     }
+    // }
 
     socket.on("disconnect", (reden) => {
         ageer(socket.id, (gast) => {
             if (reden == "ping timeout" || reden == "transport close") {
-                console.log(`[verbinding weggevallen] - misschien recoverable (reden: ${reden})`)
+                console.log(`[verbinding weggevallen] - ${socket.id.substring(16)} misschien recoverable (reden: ${reden})`)
+                console.log(`[                      ] - nu is ${gast.naam} een weeskind`)
                 if (gast.admin) {
                     console.log(" ↳ [WARN] het was de adminconnectie")
                 }
-            } else {
-                console.log(`[verbinding weggevallen] - waarschijnlijk niet recoverable (reden: ${reden})`)
-                gasten = gasten.filter((g) => g !== gast);
-                console.log(` ↳ [gast verwijderd] ${socket.id.substring(16)}`)
+                gasten = gasten.filter((g) => g.id !== gast.id);
+                weeskinders.push(gast)
+                stuurNaarAdmin("weeskindKennisgeving", gast);
             }
         })
     })
 
+    socket.on("watZullenWeHerverbinden", (callback: (weeskinders: Gast[]) => void) => {
+        console.log(`[weeskinderen aanvraag] van socket ${socket.id.substring(16)}`)
+        console.log(`[                     ] teruggegeven: ${weeskinders}`)
+        callback(weeskinders);
+    })
+
+    socket.on("infoburstAanvraag", (geadopteerdKind: Gast, callback: (kwisStatus: Kwis) => void) => {
+        weeskinders = weeskinders.filter((g) => g.id !== geadopteerdKind.id);
+        stuurNaarAdmin("idVeranderingKennisgeving", geadopteerdKind.id, socket.id)
+        console.log(`[adoptie] tegen de admin gezegd dat weeskind met id ${geadopteerdKind.id} nu van id ${socket.id} is`)
+        gasten.push({...geadopteerdKind, id: socket.id});
+        callback(kwis)
+    })
+
     // NAAMREGISTRATIE
     socket.on("registreerNaam", (naam: string, callback: (ret: string) => void) => {
-        ageer(socket.id, (gast) => gast.naam = naam)
+        gasten.push({admin: false, naam, id: socket.id, punten: 0})
         console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}"`)
         stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
         callback("naam geregistreerd.")
@@ -124,14 +149,17 @@ io.on('connection', (socket) => {
         stuurNaarAdmin("stemKennisgeving", id)
     })
 
-    socket.on("puntentelling", () => {
-        for (let antwoord of antwoorden) {
-            gasten = ageer(antwoord.spelerId, (g) => {
-                g.punten += PUNTEN_PER_STEM * antwoord.stemmen;
-                return gasten;
-            });
-        }
+    socket.on("puntentelling", (puntenMap: Array<[string, number]>) => {
         console.log("[puntentelling]")
+        console.dir(puntenMap)
+
+        for (let [id, punten] of puntenMap) {
+            gasten = ageer(id, (g: Gast) => {
+                g.punten = punten;
+                console.log(`speler ${g.naam} heeft nu ${punten} punten`);
+                return gasten;
+            })
+        }
         kwis.fase = "stemresulatenPresenteren";
         io.emit("kwisUpdate", kwis);
         io.emit("scorebord", gasten.filter((e) => !e.admin))

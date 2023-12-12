@@ -52,22 +52,19 @@
         admin = true;
     });
 
-    socket.on("nieuweSpelerKennisgeving", (id: string) => {
-        console.log("nieuwe speler gejoind");
-        spelers = [
-            ...spelers,
-            { admin: false, naam: undefined, punten: 0, id },
-        ];
-    });
+    // socket.on("nieuweSpelerKennisgeving", (id: string) => {
+    //     console.log("nieuwe speler gejoind");
+    //     spelers = [
+    //         ...spelers,
+    //         { admin: false, naam: undefined, punten: 0, id },
+    //     ];
+    // });
 
     $: teamNaamGekozen = false;
     $: teamNaam = "";
 
     socket.on("naamRegistratieKennisgeving", (id: string, naam: string) => {
-        spelers = ageer(id, (speler) => {
-            speler.naam = naam;
-            return spelers;
-        });
+        spelers = [...spelers, { naam, id, punten: 0, admin: false }];
     });
 
     $: lokaleKwis = standaardKwis;
@@ -80,7 +77,7 @@
         antwoorden = alleAntwoorden;
     });
 
-    socket.on("kwisUpdate", (nieuweStatus: Kwis) => {
+    function integreerKwis(nieuweStatus: Kwis) {
         console.log("kwis update ontvangen");
         console.log(nieuweStatus);
 
@@ -111,6 +108,10 @@
 
         lokaleKwis = nieuweStatus;
         tekstPlaceholders = extraheerPlaceholders();
+    }
+
+    socket.on("kwisUpdate", (nieuweStatus: Kwis) => {
+        integreerKwis(nieuweStatus);
     });
 
     socket.on("antwoordKennisgeving", (antwoord: Antwoord) => {
@@ -118,27 +119,72 @@
         antwoorden = [...antwoorden, antwoord];
     });
 
+    socket.on("weeskindKennisgeving", (weeskind: Gast) => {
+        console.log("weeskind kennisgeving");
+        console.log(`weeskind: ${weeskind.id}`);
+        spelers = spelers.filter((e) => {
+            console.log(`elem: ${e.id}`);
+            console.log(`exact gelijk: ${e.id === weeskind.id}`);
+            console.log(`beetje gelijk: ${e.id == weeskind.id}`);
+            return e.id !== weeskind.id;
+        });
+        checkVoorStemVolledigheid();
+        weeskinderen = [...weeskinderen, weeskind];
+    });
+
+    socket.on(
+        "idVeranderingKennisgeving",
+        (geadopteerdKindId: string, nieuweId: string) => {
+            let geadopteedKind = weeskinderen.find(
+                (e) => e.id === geadopteerdKindId,
+            )!;
+            geadopteedKind.id = nieuweId;
+            spelers = [...spelers, geadopteedKind];
+        },
+    );
+
     socket.on("stemKennisgeving", (id: string) => {
         console.log("er is gestemd op antwoord van id ", id);
 
         let antwoordIdx = antwoorden.findIndex((a) => a.spelerId == id);
         antwoorden[antwoordIdx].stemmen = antwoorden[antwoordIdx].stemmen + 1;
 
-        if (
-            antwoorden
-                .map((a) => a.stemmen)
-                .reduce((prev, current) => prev + current) == spelers.length
-        ) {
+        checkVoorStemVolledigheid();
+    });
+
+    function checkVoorStemVolledigheid() {
+        // dit voorkomt het stilvallen van het spel als er twee verbindingen zijn, waarvan er eentje wegvalt tijdens het stemmen
+        if (spelers.length === 1 && antwoorden[0].stemmen === 0) {
+            antwoorden[0].stemmen = 1;
+        }
+
+        let aantalStemmen = antwoorden
+            .map((a) => a.stemmen)
+            .reduce((prev, current) => prev + current, 0);
+
+        if (aantalStemmen == spelers.length) {
             console.log("genoeg stemmen bereikt; iedereen heeft gestemd.");
+
+            console.log(spelers);
+
             for (let antwoord of antwoorden) {
                 spelers = ageer(antwoord.spelerId, (g) => {
                     g.punten += PUNTEN_PER_STEM * antwoord.stemmen;
                     return spelers;
                 });
             }
-            socket.emit("puntentelling");
+
+            let puntenMap: Map<string, number> = new Map();
+
+            for (let speler of spelers) {
+                puntenMap.set(speler.id, speler.punten)
+            }
+
+            console.dir(puntenMap)
+            // serialisatie shit
+            socket.emit("puntentelling", Array.from(puntenMap.entries()));
         }
-    });
+    }
 
     $: leaderboardInfo = [] as Gast[]; // enkel te gebruiken in speler als leaderboard info
     socket.on("scorebord", (scorebord) => {
@@ -209,6 +255,29 @@
     function eindigKwis() {
         socket.emit("eindigKwis");
     }
+
+    $: weeskinderen = [] as Gast[];
+
+    function spelerInfo() {
+        console.log("Weeskinderen:");
+        console.dir(weeskinderen);
+        console.log("Spelers:");
+        console.dir(spelers);
+    }
+
+    function startHerverbindbaarQueeste() {
+        socket.emit("watZullenWeHerverbinden", (weeskinders: Gast[]) => {
+            weeskinderen = weeskinders;
+        });
+    }
+
+    function geefInfoBroer(weeskind: Gast) {
+        socket.emit("infoburstAanvraag", weeskind, (kwisStatus: Kwis) => {
+            integreerKwis(kwisStatus);
+            teamNaamGekozen = true;
+            teamNaam = weeskind.naam!;
+        });
+    }
 </script>
 
 <div class="bg-blue-100 w-screen min-h-screen overflow-hidden p-16">
@@ -216,6 +285,12 @@
     {#if actieveVerbinding}
         <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
         {#if admin}
+            <button
+                class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                on:click={spelerInfo}
+            >
+                Drop die weeskinderen en spelers bro
+            </button>
             {#if lokaleKwis.fase == "nogNietBegonnen"}
                 <h2 class="text-xl">Welkom, admin.</h2>
                 <div class="flex flex-col bg-white rounded-md p-6 gap-3">
@@ -248,22 +323,25 @@
                         </h2>
                     </div>
                     <div class="columns-2 p-6 basis-2/3">
-                        {#each spelers as speler}
-                            <div
-                                class="bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"
-                            >
-                                <h3 class="text-xl">{speler.naam}</h3>
-                                <img
-                                    class="w-8 aspect-square object-fit"
-                                    src={antwoorden.some(
-                                        (a) => a.spelerId === speler.id
-                                    )
-                                        ? doneImg
-                                        : loadingImg}
-                                    alt={"een laadicoontje"}
-                                />
-                            </div>
-                        {/each}
+                        {#key spelers}
+                            <!-- spelers verliezen mss verbinding -->
+                            {#each spelers as speler}
+                                <div
+                                    class="bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"
+                                >
+                                    <h3 class="text-xl">{speler.naam}</h3>
+                                    <img
+                                        class="w-8 aspect-square object-fit"
+                                        src={antwoorden.some(
+                                            (a) => a.spelerId === speler.id,
+                                        )
+                                            ? doneImg
+                                            : loadingImg}
+                                        alt={"een laadicoontje"}
+                                    />
+                                </div>
+                            {/each}
+                        {/key}
                     </div>
                 </div>
             {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
@@ -287,7 +365,9 @@
                     {/each}
                 </div>
             {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
-                <div class="flex flex-row min-w-full gap-12 mb-12 justify-stretch">
+                <div
+                    class="flex flex-row min-w-full gap-12 mb-12 justify-stretch"
+                >
                     <div class="rounded-md bg-white p-12 flex flex-col gap-3">
                         <h2 class="text-2xl font-bold text-blue-800 mb-6">
                             Antwoorden
@@ -303,9 +383,7 @@
                             </div>
                         {/each}
                     </div>
-                    <div
-                        class="rounded-md bg-white p-12 flex flex-col gap-3"
-                    >
+                    <div class="rounded-md bg-white p-12 flex flex-col gap-3">
                         <h2 class="text-2xl font-bold text-blue-800 mb-6">
                             Leaderboard
                         </h2>
@@ -333,7 +411,7 @@
             {/if}
         {:else if !teamNaamGekozen}
             <div
-                class="bg-white rounded-md shadow-md p-4 flex flex-col max-w-min gap-4"
+                class="bg-white rounded-md shadow-md p-4 flex flex-col max-w-min gap-4 mb-6"
             >
                 <p>Kies een teamnaam.</p>
                 <input
@@ -346,6 +424,26 @@
                     class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
                     on:click={registreerNaam}>Registreer!</button
                 >
+            </div>
+            <div
+                class="bg-white rounded-md shadow-md p-4 flex flex-col max-w-min gap-4"
+            >
+                <p>Herverbind als je eerder de verbinding bent kwijtgeraakt.</p>
+                <button
+                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                    on:click={startHerverbindbaarQueeste}
+                    >Zoek herverbindbare spelers.</button
+                >
+                {#each weeskinderen as weeskind}
+                    <button
+                        class="p-3 min-w-full"
+                        on:click={() => {
+                            geefInfoBroer(weeskind);
+                        }}
+                    >
+                        {weeskind.naam}
+                    </button>
+                {/each}
             </div>
         {:else if lokaleKwis.fase == "nogNietBegonnen"}
             <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>
@@ -401,9 +499,7 @@
                 <p>Bedankt voor je stem! We wachten nog op de rest.</p>
             {/if}
         {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
-            <h2 class="text-2xl font-bold text-blue-800 mb-6">
-                Leaderboard
-            </h2>
+            <h2 class="text-2xl font-bold text-blue-800 mb-6">Leaderboard</h2>
             <div class="flex flex-col gap-6 min-w-full justify-stretch">
                 {#each leaderboardInfo.toSorted((a, b) => b.punten - a.punten) as speler}
                     {#if speler.id == socket.id}
@@ -423,9 +519,9 @@
     {:else}
         <p>
             Niet verbonden. De spelserver kan offline zijn, of je bent zelf
-            offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl
-            je net in het spel zat, ben je een beetje fucked. Vraag Simeon even
-            om dit te fiksen. Socket-id: {socket.id}.
+            offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl je
+            net in het spel zat, ben je een beetje fucked. Vraag Simeon even om
+            dit te fiksen. Socket-id: {socket.id}.
         </p>
     {/if}
 </div>
