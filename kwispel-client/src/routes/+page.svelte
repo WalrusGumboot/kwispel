@@ -177,10 +177,10 @@
             let puntenMap: Map<string, number> = new Map();
 
             for (let speler of spelers) {
-                puntenMap.set(speler.id, speler.punten)
+                puntenMap.set(speler.id, speler.punten);
             }
 
-            console.dir(puntenMap)
+            console.dir(puntenMap);
             // serialisatie shit
             socket.emit("puntentelling", Array.from(puntenMap.entries()));
         }
@@ -289,7 +289,7 @@
                 class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
                 on:click={spelerInfo}
             >
-                Drop die weeskinderen en spelers bro
+                Log spelerinformatie
             </button>
             {#if lokaleKwis.fase == "nogNietBegonnen"}
                 <h2 class="text-xl">Welkom, admin.</h2>
@@ -408,10 +408,24 @@
                         ? "Beëindig quiz"
                         : "Volgende vraag"}</button
                 >
+            {:else if lokaleKwis.fase == "beëindigd"}
+                <h2 class="text-3xl mb-8">
+                    Gefeliciteerd, <b
+                        >{spelers.toSorted((a, b) => b.punten - a.punten)[0]
+                            .naam}</b
+                    >!
+                </h2>
+                <div class="rounded-md bg-white p-12 flex flex-col gap-3">
+                    {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
+                        <div class="bg-amber-200 p-4 rounded-md">
+                            <p>{speler.naam}: {speler.punten}</p>
+                        </div>
+                    {/each}
+                </div>
             {/if}
         {:else if !teamNaamGekozen}
             <div
-                class="bg-white rounded-md shadow-md p-4 flex flex-col max-w-min gap-4 mb-6"
+                class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4 mb-6"
             >
                 <p>Kies een teamnaam.</p>
                 <input
@@ -426,24 +440,28 @@
                 >
             </div>
             <div
-                class="bg-white rounded-md shadow-md p-4 flex flex-col max-w-min gap-4"
+                class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4"
             >
                 <p>Herverbind als je eerder de verbinding bent kwijtgeraakt.</p>
                 <button
                     class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
                     on:click={startHerverbindbaarQueeste}
-                    >Zoek herverbindbare spelers.</button
+                    >Zoek naar herverbindbare spelers</button
                 >
-                {#each weeskinderen as weeskind}
-                    <button
-                        class="p-3 min-w-full"
-                        on:click={() => {
-                            geefInfoBroer(weeskind);
-                        }}
-                    >
-                        {weeskind.naam}
-                    </button>
-                {/each}
+                {#if weeskinderen.length == 0}
+                    <p>Geen herverbindbare spelers gevonden.</p>
+                {:else}
+                    {#each weeskinderen as weeskind}
+                        <button
+                            class="p-3 min-w-full"
+                            on:click={() => {
+                                geefInfoBroer(weeskind);
+                            }}
+                        >
+                            {weeskind.naam}
+                        </button>
+                    {/each}
+                {/if}
             </div>
         {:else if lokaleKwis.fase == "nogNietBegonnen"}
             <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>
@@ -509,7 +527,7 @@
                             </p>
                         </div>
                     {:else}
-                        <div class="bg-white p-2 rounded-md">
+                        <div class="bg-white p-4 rounded-md">
                             <p>{speler.naam}: {speler.punten}</p>
                         </div>
                     {/if}
