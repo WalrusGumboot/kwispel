@@ -5,9 +5,18 @@
     import doneImg from "../assets/checkmark.png";
 
     import { io } from "socket.io-client";
-    import type { Gast } from "$lib/Gast";
+    import type { Gast, Richting } from "$lib/Gast";
     import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "$lib/Kwis";
     import type { Antwoord } from "$lib/Antwoord";
+    import {
+        achtergrondStijl,
+        antwoordStemKnopStijl,
+        eigenSpelerStijl,
+        headingStijl,
+        knopStijl,
+        spelerAntwoordLaadStijl,
+    } from "$lib/Stijlen";
+    import Teambadge from "$lib/Teambadge.svelte";
 
     $: spelers = [] as Gast[];
 
@@ -62,10 +71,17 @@
 
     $: teamNaamGekozen = false;
     $: teamNaam = "";
+    $: richting = undefined as Richting;
 
-    socket.on("naamRegistratieKennisgeving", (id: string, naam: string) => {
-        spelers = [...spelers, { naam, id, punten: 0, admin: false }];
-    });
+    socket.on(
+        "naamRegistratieKennisgeving",
+        (id: string, naam: string, richting: Richting) => {
+            spelers = [
+                ...spelers,
+                { naam, id, richting, punten: 0, admin: false },
+            ];
+        },
+    );
 
     $: lokaleKwis = standaardKwis;
 
@@ -191,10 +207,13 @@
         leaderboardInfo = scorebord;
     });
 
-    function registreerNaam() {
-        socket.emitWithAck("registreerNaam", teamNaam).then(() => {
-            teamNaamGekozen = true;
-        });
+    function registreerNaam(gekozenRichting: Richting) {
+        socket
+            .emitWithAck("registreerNaam", teamNaam, gekozenRichting)
+            .then(() => {
+                teamNaamGekozen = true;
+                richting = gekozenRichting;
+            });
     }
 
     function startKwis() {
@@ -278,268 +297,324 @@
             teamNaam = weeskind.naam!;
         });
     }
+
+    function puntenVoorTeam(richting: Richting, groepSpelers: Gast[]): number {
+        return groepSpelers.filter((e) => e.richting == richting).reduce((acc, curr) => acc + curr.punten, 0)
+    }
 </script>
 
-<div class="bg-blue-100 w-screen min-h-screen overflow-hidden p-16">
-    <h1 class="text-3xl font-bold mb-6">kwispel</h1>
-    {#if actieveVerbinding}
-        <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
-        {#if admin}
-            <button
-                class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                on:click={spelerInfo}
-            >
-                Log spelerinformatie
-            </button>
-            {#if lokaleKwis.fase == "nogNietBegonnen"}
-                <h2 class="text-xl">Welkom, admin.</h2>
-                <div class="flex flex-col bg-white rounded-md p-6 gap-3">
-                    <h3 class="text-lg">Verbonden spelers</h3>
-                    <hr class="mb-2" />
-                    {#key spelers}
-                        {#each spelers as speler}
-                            <p>{speler.id} heet {speler.naam}</p>
-                        {/each}
-                        {#if spelers.length >= 2}
-                            <button
-                                class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
-                                on:click={startKwis}>Start kwis</button
-                            >
-                        {/if}
-                    {/key}
-                </div>
-            {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
-                <div class="flex flex-col gap-6">
-                    <div
-                        id="vraagstelling"
-                        class="basis-1/3 rounded-md bg-white shadow-md p-6 flex flex-row items-center justify-center"
-                    >
-                        <h2
-                            class="text-3xl font-bold text-blue-800 drop-shadow-sm"
-                        >
-                            {lokaleKwis.vragen[
-                                lokaleKwis.huidigeVraagIdx
-                            ].tekst.replaceAll("{}", "_____")}
-                        </h2>
-                    </div>
-                    <div class="columns-2 p-6 basis-2/3">
+{#key richting}
+    <div class={achtergrondStijl.get(richting)}>
+        <h1 class="text-3xl font-bold mb-6">kwispel</h1>
+        {#if actieveVerbinding}
+            <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
+            {#if admin}
+                <button
+                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                    on:click={spelerInfo}
+                >
+                    Log spelerinformatie
+                </button>
+                {#if lokaleKwis.fase == "nogNietBegonnen"}
+                    <h2 class="text-xl">Welkom, admin.</h2>
+                    <div class="flex flex-col bg-white rounded-md p-6 gap-3">
+                        <h3 class="text-lg">Verbonden spelers</h3>
+                        <hr class="mb-2" />
                         {#key spelers}
-                            <!-- spelers verliezen mss verbinding -->
                             {#each spelers as speler}
-                                <div
-                                    class="bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"
-                                >
-                                    <h3 class="text-xl">{speler.naam}</h3>
-                                    <img
-                                        class="w-8 aspect-square object-fit"
-                                        src={antwoorden.some(
-                                            (a) => a.spelerId === speler.id,
-                                        )
-                                            ? doneImg
-                                            : loadingImg}
-                                        alt={"een laadicoontje"}
-                                    />
-                                </div>
+                                <p>{speler.id} heet {speler.naam}</p>
                             {/each}
+                            {#if spelers.length >= 2}
+                                <button
+                                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                                    on:click={startKwis}>Start kwis</button
+                                >
+                            {/if}
                         {/key}
                     </div>
-                </div>
-            {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
-                <div class="flex flex-col gap-6 min-w-full">
-                    {#each antwoorden as antwoord}
-                        {#if antwoord.getoond}
-                            <div
-                                class="p-4 text-lg bg-white rounded-md flex flex-col gap-2 min-w-full"
-                                transition:fly={{
-                                    y: 200,
-                                    duration: 500,
-                                }}
+                {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
+                    <div class="flex flex-col gap-6">
+                        <div
+                            id="vraagstelling"
+                            class="basis-1/3 rounded-md bg-white shadow-md p-6 flex flex-row items-center justify-center"
+                        >
+                            <h2
+                                class="text-3xl font-bold text-blue-800 drop-shadow-sm"
                             >
-                                {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
-                                    <p>
-                                        {vulTemplateIn(antwoord.data)}
-                                    </p>
-                                {/if}
-                            </div>
-                        {/if}
-                    {/each}
-                </div>
-            {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
-                <div
-                    class="flex flex-row min-w-full gap-12 mb-12 justify-stretch"
-                >
-                    <div class="rounded-md bg-white p-12 flex flex-col gap-3">
-                        <h2 class="text-2xl font-bold text-blue-800 mb-6">
-                            Antwoorden
-                        </h2>
+                                {lokaleKwis.vragen[
+                                    lokaleKwis.huidigeVraagIdx
+                                ].tekst.replaceAll("{}", "_____")}
+                            </h2>
+                        </div>
+                        <div class="columns-2 p-6 basis-2/3">
+                            {#key spelers}
+                                <!-- spelers verliezen mss verbinding -->
+                                {#each spelers as speler}
+                                    <div
+                                        class={spelerAntwoordLaadStijl.get(
+                                            speler.richting,
+                                        )}
+                                    >
+                                        <h3 class="text-xl">{speler.naam}</h3>
+                                        <img
+                                            class="w-8 aspect-square object-fit"
+                                            src={antwoorden.some(
+                                                (a) => a.spelerId === speler.id,
+                                            )
+                                                ? doneImg
+                                                : loadingImg}
+                                            alt={"een laadicoontje"}
+                                        />
+                                        <Teambadge richting={speler.richting} />
+                                    </div>
+                                {/each}
+                            {/key}
+                        </div>
+                    </div>
+                {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
+                    <div class="flex flex-col gap-6 min-w-full">
                         {#each antwoorden as antwoord}
-                            <div class="bg-amber-200 p-4 rounded-md">
-                                <p class="text-lg font-bold mb-3">
-                                    {ageer(antwoord.spelerId, (g) => g.naam)}
-                                </p>
-                                {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
-                                    {vulTemplateIn(antwoord.data)}
-                                {/if}
-                            </div>
+                            {#if antwoord.getoond}
+                                <div
+                                    class="p-4 text-lg bg-white rounded-md flex flex-col gap-2 min-w-full"
+                                    transition:fly={{
+                                        y: 200,
+                                        duration: 500,
+                                    }}
+                                >
+                                    {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                                        <p>
+                                            {vulTemplateIn(antwoord.data)}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {/if}
                         {/each}
                     </div>
+                {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
+                    <div
+                        class="flex flex-row min-w-full gap-12 mb-12 justify-stretch"
+                    >
+                        <div
+                            class="rounded-md bg-white p-12 flex flex-col gap-3"
+                        >
+                            <h2 class="text-2xl font-bold text-blue-800 mb-6">
+                                Antwoorden
+                            </h2>
+                            {#each antwoorden as antwoord}
+                                <div
+                                    class={eigenSpelerStijl.get(
+                                        ageer(
+                                            antwoord.spelerId,
+                                            (g) => g.richting,
+                                        ),
+                                    )}
+                                >
+                                    <p class="text-lg font-bold mb-3">
+                                        {ageer(
+                                            antwoord.spelerId,
+                                            (g) => g.naam,
+                                        )}
+                                    </p>
+                                    {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                                        {vulTemplateIn(antwoord.data)}
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                        <div
+                            class="rounded-md bg-white p-12 flex flex-col gap-3"
+                        >
+                            <h2 class="text-2xl font-bold text-blue-800 mb-6">
+                                Leaderboard
+                            </h2>
+                            {#key spelers}
+                                {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
+                                    <div
+                                        class={eigenSpelerStijl.get(
+                                            speler.richting,
+                                        )}
+                                    >
+                                        <p>{speler.naam}: {speler.punten}</p>
+                                        <Teambadge richting={speler.richting} />
+                                    </div>
+                                {/each}
+                            {/key}
+                        </div>
+                    </div>
+                    <button
+                        class={knopStijl.get(richting)}
+                        on:click={lokaleKwis.vragen.length - 1 ==
+                        lokaleKwis.huidigeVraagIdx
+                            ? () => {
+                                  eindigKwis();
+                              }
+                            : () => {
+                                  volgendeVraag();
+                              }}
+                        >{lokaleKwis.vragen.length - 1 ==
+                        lokaleKwis.huidigeVraagIdx
+                            ? "Beëindig quiz"
+                            : "Volgende vraag"}</button
+                    >
+                {:else if lokaleKwis.fase == "beëindigd"}
+                    <h2 class="text-3xl mb-8">
+                        Gefeliciteerd, <b
+                            >{spelers.toSorted((a, b) => b.punten - a.punten)[0]
+                                .naam}</b
+                        >!
+                    </h2>
+
+                    <div class="mb-4 flex flex-row min-w-max gap-12 justify-stretch">
+                        <div class="bg-wiskunde-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center">
+                            <h3 class="text-xl">Team <span class="text-wiskunde-500 font-bold">Wiskunde</span> heeft {puntenVoorTeam("Wiskunde", spelers)} punten gescoord!</h3>
+                        </div>
+
+                        <div class="bg-fysica-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center">
+                            <h3 class="text-xl">Team <span class="text-fysica-500 font-bold">Fysica</span> heeft {puntenVoorTeam("Fysica", spelers)} punten gescoord!</h3>
+                        </div>
+                    </div>
+
                     <div class="rounded-md bg-white p-12 flex flex-col gap-3">
-                        <h2 class="text-2xl font-bold text-blue-800 mb-6">
-                            Leaderboard
-                        </h2>
                         {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
-                            <div class="bg-amber-200 p-4 rounded-md">
+                            <div class={eigenSpelerStijl.get(speler.richting)}>
                                 <p>{speler.naam}: {speler.punten}</p>
                             </div>
                         {/each}
                     </div>
-                </div>
-                <button
-                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all min-w-full"
-                    on:click={lokaleKwis.vragen.length - 1 ==
-                    lokaleKwis.huidigeVraagIdx
-                        ? () => {
-                              eindigKwis();
-                          }
-                        : () => {
-                              volgendeVraag();
-                          }}
-                    >{lokaleKwis.vragen.length - 1 == lokaleKwis.huidigeVraagIdx
-                        ? "Beëindig quiz"
-                        : "Volgende vraag"}</button
-                >
-            {:else if lokaleKwis.fase == "beëindigd"}
-                <h2 class="text-3xl mb-8">
-                    Gefeliciteerd, <b
-                        >{spelers.toSorted((a, b) => b.punten - a.punten)[0]
-                            .naam}</b
-                    >!
-                </h2>
-                <div class="rounded-md bg-white p-12 flex flex-col gap-3">
-                    {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
-                        <div class="bg-amber-200 p-4 rounded-md">
-                            <p>{speler.naam}: {speler.punten}</p>
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-        {:else if !teamNaamGekozen}
-            <div
-                class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4 mb-6"
-            >
-                <p>Kies een teamnaam.</p>
-                <input
-                    bind:value={teamNaam}
-                    placeholder="De Kwiskundigen"
-                    class="p-3 border rounded-sm border-blue-800"
-                />
-                <br />
-                <button
-                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
-                    on:click={registreerNaam}>Registreer!</button
-                >
-            </div>
-            <div
-                class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4"
-            >
-                <p>Herverbind als je eerder de verbinding bent kwijtgeraakt.</p>
-                <button
-                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
-                    on:click={startHerverbindbaarQueeste}
-                    >Zoek naar herverbindbare spelers</button
-                >
-                {#if weeskinderen.length == 0}
-                    <p>Geen herverbindbare spelers gevonden.</p>
-                {:else}
-                    {#each weeskinderen as weeskind}
-                        <button
-                            class="p-3 min-w-full"
-                            on:click={() => {
-                                geefInfoBroer(weeskind);
-                            }}
-                        >
-                            {weeskind.naam}
-                        </button>
-                    {/each}
                 {/if}
-            </div>
-        {:else if lokaleKwis.fase == "nogNietBegonnen"}
-            <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>
-            <p>Het is nu een kwestie van wachten tot de kwis van start gaat.</p>
-        {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
-            <h3 class="text-xl mb-3">
-                Tijd om een antwoord te verzinnen, <b>{teamNaam}</b>.
-            </h3>
-            {#if antwoordVerstuurd}
-                <p>
-                    Bedankt voor je antwoord! Nu is het wachten tot de rest
-                    klaar is.
-                </p>
-            {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
-                <div class="flex flex-col gap-4">
-                    {#each tekstPlaceholders as item}
-                        <input
-                            class="w-full rounded-md border p-3"
-                            placeholder="Geef een (partieel) antwoord in."
-                            bind:value={tekstInvoeren[item]}
-                        />
-                    {/each}
+            {:else if !teamNaamGekozen}
+                <div
+                    class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4 mb-6"
+                >
+                    <p>Kies een teamnaam.</p>
+                    <input
+                        bind:value={teamNaam}
+                        placeholder="De Kwiskundigen"
+                        class="p-3 border rounded-sm border-blue-800"
+                    />
+                    <br />
                     <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
-                        on:click={verstuurAntwoord}>Dien antwoord in</button
+                        class="rounded-md text-white bg-wiskunde-500 p-3 hover:bg-wiskunde-800 transition-all"
+                        on:click={() => registreerNaam("Wiskunde")}
+                        >Registreer als wiskundeteam!</button
+                    >
+                    <button
+                        class="rounded-md text-white bg-fysica-500 p-3 hover:bg-fysica-800 transition-all"
+                        on:click={() => registreerNaam("Fysica")}
+                        >Registreer als fysicateam!</button
                     >
                 </div>
-            {/if}
-        {:else if lokaleKwis.fase == "stemmen"}
-            {#if !gestemd}
-                <div class="flex flex-col gap-4">
-                    {#each antwoorden as antwoord}
-                        {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
+                <div
+                    class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4"
+                >
+                    <p>
+                        Herverbind als je eerder de verbinding bent
+                        kwijtgeraakt.
+                    </p>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                        on:click={startHerverbindbaarQueeste}
+                        >Zoek naar herverbindbare spelers</button
+                    >
+                    {#if weeskinderen.length == 0}
+                        <p>Geen herverbindbare spelers gevonden.</p>
+                    {:else}
+                        {#each weeskinderen as weeskind}
                             <button
-                                class="bg-white rounded-md hover:bg-blue-500 text-blue-800 hover:text-white transition-all p-4 disabled:bg-gray-300 disabled:text-gray-800"
-                                disabled={antwoord.spelerId == socket.id}
-                                on:click={() => stem(antwoord.spelerId)}
+                                class="p-3 min-w-full"
+                                on:click={() => {
+                                    geefInfoBroer(weeskind);
+                                }}
                             >
-                                <p>
-                                    {vulTemplateIn(antwoord.data)}
-                                </p>
-                                {#if antwoord.spelerId == socket.id}
-                                    <p class="text-sm">
-                                        Zeg, flauwe plezante, da's uw eigen
-                                        antwoord.
-                                    </p>
-                                {/if}
+                                {weeskind.naam}
                             </button>
+                        {/each}
+                    {/if}
+                </div>
+            {:else if lokaleKwis.fase == "nogNietBegonnen"}
+                <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>
+                <p>
+                    Het is nu een kwestie van wachten tot de kwis van start
+                    gaat.
+                </p>
+            {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
+                <h3 class="text-xl mb-3">
+                    Tijd om een antwoord te verzinnen, <b>{teamNaam}</b>.
+                </h3>
+                {#if antwoordVerstuurd}
+                    <p>
+                        Bedankt voor je antwoord! Nu is het wachten tot de rest
+                        klaar is.
+                    </p>
+                {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                    <div class="flex flex-col gap-4">
+                        {#each tekstPlaceholders as item}
+                            <input
+                                class="w-full rounded-md border p-3"
+                                placeholder="Geef een (partieel) antwoord in."
+                                bind:value={tekstInvoeren[item]}
+                            />
+                        {/each}
+                        <button
+                            class={knopStijl.get(richting)}
+                            on:click={verstuurAntwoord}>Dien antwoord in</button
+                        >
+                    </div>
+                {/if}
+            {:else if lokaleKwis.fase == "stemmen"}
+                {#if !gestemd}
+                    <div class="flex flex-col gap-4">
+                        {#each antwoorden as antwoord}
+                            {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
+                                <button
+                                    class={antwoordStemKnopStijl.get(richting)}
+                                    disabled={antwoord.spelerId == socket.id}
+                                    on:click={() => stem(antwoord.spelerId)}
+                                >
+                                    <p>
+                                        {vulTemplateIn(antwoord.data)}
+                                    </p>
+                                    {#if antwoord.spelerId == socket.id}
+                                        <p class="text-sm">
+                                            Zeg, flauwe plezante, da's uw eigen
+                                            antwoord.
+                                        </p>
+                                    {/if}
+                                </button>
+                            {/if}
+                        {/each}
+                    </div>
+                {:else}
+                    <p>Bedankt voor je stem! We wachten nog op de rest.</p>
+                {/if}
+            {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
+                <h2 class={headingStijl.get(richting)}>Leaderboard</h2>
+                <div class="flex flex-col gap-6 min-w-full justify-stretch">
+                    {#each leaderboardInfo.toSorted((a, b) => b.punten - a.punten) as speler}
+                        {#if speler.id == socket.id}
+                            <div class={eigenSpelerStijl.get(richting)}>
+                                <p class="font-bold">
+                                    {speler.naam}: {speler.punten}
+                                </p>
+                                <Teambadge richting={speler.richting} />
+                            </div>
+                        {:else}
+                            <div class="bg-white p-4 rounded-md">
+                                <p>{speler.naam}: {speler.punten}</p>
+                                <Teambadge richting={speler.richting} />
+                            </div>
                         {/if}
                     {/each}
                 </div>
-            {:else}
-                <p>Bedankt voor je stem! We wachten nog op de rest.</p>
             {/if}
-        {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
-            <h2 class="text-2xl font-bold text-blue-800 mb-6">Leaderboard</h2>
-            <div class="flex flex-col gap-6 min-w-full justify-stretch">
-                {#each leaderboardInfo.toSorted((a, b) => b.punten - a.punten) as speler}
-                    {#if speler.id == socket.id}
-                        <div class="bg-amber-200 p-4 rounded-md">
-                            <p class="font-bold">
-                                {speler.naam}: {speler.punten}
-                            </p>
-                        </div>
-                    {:else}
-                        <div class="bg-white p-4 rounded-md">
-                            <p>{speler.naam}: {speler.punten}</p>
-                        </div>
-                    {/if}
-                {/each}
-            </div>
+        {:else}
+            <p>
+                Niet verbonden. De spelserver kan offline zijn, of je bent zelf
+                offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl
+                je net in het spel zat, ben je een beetje fucked. Vraag Simeon
+                even om dit te fiksen. Socket-id: {socket.id}.
+            </p>
         {/if}
-    {:else}
-        <p>
-            Niet verbonden. De spelserver kan offline zijn, of je bent zelf
-            offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl je
-            net in het spel zat, ben je een beetje fucked. Vraag Simeon even om
-            dit te fiksen. Socket-id: {socket.id}.
-        </p>
-    {/if}
-</div>
+    </div>
+{/key}

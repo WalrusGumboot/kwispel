@@ -16,7 +16,7 @@ server.listen(
     }
 )
 
-import type { Gast } from "./kwispel-client/src/lib/Gast";
+import type { Gast, Richting } from "./kwispel-client/src/lib/Gast";
 import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "./kwispel-client/src/lib/Kwis";
 import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
 
@@ -57,16 +57,11 @@ function stuurNaarAdmin(ev: string, ...args: any[]) {
     console.log(`   [naar admin]: ${ev} met args ${args}`)
 }
 
-
-function idAanwezig(id: string): boolean {
-    return gasten.some((gast) => gast.id === id);
-}
-
 io.on('connection', (socket) => {
     // CONNECTIELOGICA
     console.log(`[nieuwe verbinding] ${socket.id.substring(16)}`);
     if (gasten.length === 0) {
-        gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0 });
+        gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
     } 
@@ -107,11 +102,12 @@ io.on('connection', (socket) => {
         console.log(`[adoptie] tegen de admin gezegd dat weeskind met id ${geadopteerdKind.id} nu van id ${socket.id} is`)
         gasten.push({...geadopteerdKind, id: socket.id});
         callback(kwis)
+        socket.emit("scorebord", gasten.filter((e) => !e.admin))
     })
 
     // NAAMREGISTRATIE
-    socket.on("registreerNaam", (naam: string, callback: (ret: string) => void) => {
-        gasten.push({admin: false, naam, id: socket.id, punten: 0})
+    socket.on("registreerNaam", (naam: string, richting: Richting, callback: (ret: string) => void) => {
+        gasten.push({admin: false, naam, id: socket.id, punten: 0, richting})
         console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}"`)
         stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
         callback("naam geregistreerd.")
@@ -175,6 +171,7 @@ io.on('connection', (socket) => {
 
     socket.on("eindigKwis", () => {
         kwis.fase = "beëindigd"
+        io.emit("kwisUpdate", kwis)
         console.log("[kwis klaar]")
     })
 });
