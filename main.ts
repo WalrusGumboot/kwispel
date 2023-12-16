@@ -12,12 +12,12 @@ const io = new Server(server, {
 server.listen(
     3141,
     () => {
-        console.log("[websocket server geactiveerd]")
+        console.log("[websocket server geactiveerd] (poort 3141)")
     }
 )
 
 import type { Gast, Richting } from "./kwispel-client/src/lib/Gast";
-import { standaardKwis, type Kwis, PUNTEN_PER_STEM } from "./kwispel-client/src/lib/Kwis";
+import { standaardKwis, type Kwis } from "./kwispel-client/src/lib/Kwis";
 import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
 
 let gasten: Gast[] = [];
@@ -25,7 +25,7 @@ let weeskinders: Gast[] = []; // spelers wiens oorspronkelijke socketverbinding 
 let kwis: Kwis = standaardKwis;
 let antwoorden: Antwoord[] = [];
 
-class GeenSpelerError extends Error {}
+class GeenSpelerError extends Error { }
 class MeerdereGastenError extends Error {
 
 }
@@ -64,7 +64,7 @@ io.on('connection', (socket) => {
         gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
-    } 
+    }
     // else {
     //     if (idAanwezig(socket.id)) {
     //         console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
@@ -100,14 +100,14 @@ io.on('connection', (socket) => {
         weeskinders = weeskinders.filter((g) => g.id !== geadopteerdKind.id);
         stuurNaarAdmin("idVeranderingKennisgeving", geadopteerdKind.id, socket.id)
         console.log(`[adoptie] tegen de admin gezegd dat weeskind met id ${geadopteerdKind.id} nu van id ${socket.id} is`)
-        gasten.push({...geadopteerdKind, id: socket.id});
+        gasten.push({ ...geadopteerdKind, id: socket.id });
         callback(kwis)
         socket.emit("scorebord", gasten.filter((e) => !e.admin))
     })
 
     // NAAMREGISTRATIE
     socket.on("registreerNaam", (naam: string, richting: Richting, callback: (ret: string) => void) => {
-        gasten.push({admin: false, naam, id: socket.id, punten: 0, richting})
+        gasten.push({ admin: false, naam, id: socket.id, punten: 0, richting })
         console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}"`)
         stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
         callback("naam geregistreerd.")

@@ -3,7 +3,13 @@ services:
     build: ./kwispel-client
     ports:
       - "5173"
+    networks:
+      - netwerk
   server:
     build: .
-    expose:
-      - 3141
+    ports:
+      - "3141"
+    networks:
+      - netwerk
+networks:
+  netwerk:
