@@ -1,0 +1,9 @@
+services:
+  frontend:
+    build: ./kwispel-client
+    ports:
+      - "5173"
+  server:
+    build: .
+    expose:
+      - 3141

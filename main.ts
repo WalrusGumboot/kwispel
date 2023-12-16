@@ -12,7 +12,7 @@ const io = new Server(server, {
 server.listen(
     3141,
     () => {
-        console.log("[server geactiveerd]")
+        console.log("[websocket server geactiveerd]")
     }
 )
 
