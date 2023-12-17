@@ -16,9 +16,9 @@ server.listen(
     }
 )
 
-import type { Gast, Richting } from "./kwispel-client/src/lib/Gast";
-import { standaardKwis, type Kwis } from "./kwispel-client/src/lib/Kwis";
-import type { Antwoord } from "./kwispel-client/src/lib/Antwoord";
+import type { Gast, Richting } from "../kwispel-client/src/lib/Gast";
+import { standaardKwis, type Kwis } from "../kwispel-client/src/lib/Kwis";
+import type { Antwoord } from "../kwispel-client/src/lib/Antwoord";
 
 let gasten: Gast[] = [];
 let weeskinders: Gast[] = []; // spelers wiens oorspronkelijke socketverbinding weg is gevallen
