@@ -44,7 +44,7 @@
         return templateTekst;
     }
 
-    const socket = io("localhost:3141");
+    const socket = io("0.0.0.0:3141");
 
     $: actieveVerbinding = false;
 

@@ -6,7 +6,7 @@ const server = createServer();
 const io = new Server(server, {
     connectionStateRecovery: {},
     cors: {
-        origin: "http://localhost:5173"
+        origin: "http://0.0.0.0:5173"
     }
 })
 server.listen(
@@ -26,9 +26,7 @@ let kwis: Kwis = standaardKwis;
 let antwoorden: Antwoord[] = [];
 
 class GeenSpelerError extends Error { }
-class MeerdereGastenError extends Error {
-
-}
+class MeerdereGastenError extends Error { }
 
 function ageer<T>(id: string, functie: (gast: Gast) => T): T {
     let matchendeIds = gasten.filter((gast) => gast.id === id);

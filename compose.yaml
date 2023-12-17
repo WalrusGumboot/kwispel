@@ -1,15 +1,15 @@
 services:
-  frontend:
-    build: ./kwispel-client
-    ports:
-      - "5173"
-    networks:
-      - netwerk
   server:
     build: .
     ports:
-      - "3141"
+      - "3141:3141"
     networks:
-      - netwerk
+      - kwispel-server_gedeeldNetwerk
+  frontend:
+    build: ./kwispel-client
+    ports:
+      - "5173:5173"
+    networks:
+      - kwispel-server_gedeeldNetwerk
 networks:
-  netwerk:
+  kwispel-server_gedeeldNetwerk:
