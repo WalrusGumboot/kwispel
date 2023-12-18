@@ -45,7 +45,7 @@
         return templateTekst;
     }
 
-    const socket = io("0.0.0.0:3141");
+    const socket = io();
 
     $: actieveVerbinding = false;
 

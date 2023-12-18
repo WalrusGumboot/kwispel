@@ -6,13 +6,23 @@ services:
     ports:
       - "3141:3141"
     networks:
-      - kwispel-server_gedeeldNetwerk
+      - kwispel-netwerk
   frontend:
     build: 
       context: ./kwispel-client
     ports:
       - "5173:5173"
     networks:
-      - kwispel-server_gedeeldNetwerk
+      - kwispel-netwerk
+  proxy:
+    build:
+      context: ./kwispel-proxy
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+      - frontend
+    networks:
+      - kwispel-netwerk
 networks:
-  kwispel-server_gedeeldNetwerk:
+  kwispel-netwerk:

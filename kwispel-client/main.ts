@@ -5,5 +5,5 @@ const port = 5173;
 app.use(express.static('build'));
 
 app.listen(port, () => {
-    console.log("[http server geactiveerd] (poort 5173)")
+    console.log(`[http server geactiveerd] (poort ${port})`)
 })

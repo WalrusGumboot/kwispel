@@ -6,7 +6,7 @@ const server = createServer();
 const io = new Server(server, {
     connectionStateRecovery: {},
     cors: {
-        origin: "http://0.0.0.0:5173"
+        origin: "*"
     }
 })
 server.listen(
