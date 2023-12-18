@@ -120,6 +120,7 @@
         }
 
         if (nieuweStatus.fase === "antwoordenVerzamelen") {
+            fotoData = ""; // dit werkt want "" is falsy in JavaScript
             antwoordVerstuurd = false;
         }
 
@@ -227,6 +228,12 @@
     let tekstPlaceholders = [] as number[];
     let tekstInvoeren = [] as string[];
 
+    let fotoData: string;
+    function fotoInstelCallback(data: string) {
+        fotoData = data;
+        verstuurAntwoord();
+    }
+
     function extraheerPlaceholders(): number[] {
         let tekst = lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].tekst;
         let placeholders = [];
@@ -249,15 +256,24 @@
 
     function verstuurAntwoord() {
         antwoordVerstuurd = true;
+        let teVersturenObject;
+
         if (lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst") {
-            console.log(tekstInvoeren);
-            socket.emit("verstuurAntwoord", {
-                getoond: false,
-                spelerId: socket.id,
-                stemmen: 0,
-                data: tekstInvoeren,
-            } satisfies Antwoord);
+            teVersturenObject = tekstInvoeren;
+        } else if (
+            lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "foto"
+        ) {
+            teVersturenObject = fotoData;
+        } else {
+            teVersturenObject = "ERROR - geen verzendbare data";
         }
+
+        socket.emit("verstuurAntwoord", {
+            getoond: false,
+            spelerId: socket.id,
+            stemmen: 0,
+            data: teVersturenObject,
+        } satisfies Antwoord);
     }
 
     $: gestemd = false;
@@ -300,7 +316,9 @@
     }
 
     function puntenVoorTeam(richting: Richting, groepSpelers: Gast[]): number {
-        return groepSpelers.filter((e) => e.richting == richting).reduce((acc, curr) => acc + curr.punten, 0)
+        return groepSpelers
+            .filter((e) => e.richting == richting)
+            .reduce((acc, curr) => acc + curr.punten, 0);
     }
 </script>
 
@@ -377,7 +395,7 @@
                         {#each antwoorden as antwoord}
                             {#if antwoord.getoond}
                                 <div
-                                    class="p-4 text-lg bg-white rounded-md flex flex-col gap-2 min-w-full"
+                                    class="p-4 text-lg bg-white rounded-md min-w-full"
                                     transition:fly={{
                                         y: 200,
                                         duration: 500,
@@ -387,6 +405,13 @@
                                         <p>
                                             {vulTemplateIn(antwoord.data)}
                                         </p>
+                                    {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                                        <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
+                                        <img
+                                            class="w-1/2"
+                                            src={antwoord.data.toString()}
+                                            alt="Het ingezonden antwoord"
+                                        />
                                     {/if}
                                 </div>
                             {/if}
@@ -419,6 +444,13 @@
                                     </p>
                                     {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
                                         {vulTemplateIn(antwoord.data)}
+                                    {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                                        <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
+                                        <img
+                                            class="w-1/2"
+                                            src={antwoord.data.toString()}
+                                            alt="Het ingezonden antwoord"
+                                        />
                                     {/if}
                                 </div>
                             {/each}
@@ -466,13 +498,31 @@
                         >!
                     </h2>
 
-                    <div class="mb-4 flex flex-row min-w-max gap-12 justify-stretch">
-                        <div class="bg-wiskunde-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center">
-                            <h3 class="text-xl">Team <span class="text-wiskunde-500 font-bold">Wiskunde</span> heeft {puntenVoorTeam("Wiskunde", spelers)} punten gescoord!</h3>
+                    <div
+                        class="mb-4 flex flex-row min-w-max gap-12 justify-stretch"
+                    >
+                        <div
+                            class="bg-wiskunde-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center"
+                        >
+                            <h3 class="text-xl">
+                                Team <span class="text-wiskunde-500 font-bold"
+                                    >Wiskunde</span
+                                >
+                                heeft {puntenVoorTeam("Wiskunde", spelers)} punten
+                                gescoord!
+                            </h3>
                         </div>
 
-                        <div class="bg-fysica-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center">
-                            <h3 class="text-xl">Team <span class="text-fysica-500 font-bold">Fysica</span> heeft {puntenVoorTeam("Fysica", spelers)} punten gescoord!</h3>
+                        <div
+                            class="bg-fysica-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center"
+                        >
+                            <h3 class="text-xl">
+                                Team <span class="text-fysica-500 font-bold"
+                                    >Fysica</span
+                                >
+                                heeft {puntenVoorTeam("Fysica", spelers)} punten
+                                gescoord!
+                            </h3>
                         </div>
                     </div>
 
@@ -563,11 +613,14 @@
                         >
                     </div>
                 {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
-                    <FotoUploader spelerRichting={richting} />
+                    <FotoUploader
+                        spelerRichting={richting}
+                        dataOntvangenCallback={fotoInstelCallback}
+                    />
                 {/if}
             {:else if lokaleKwis.fase == "stemmen"}
                 {#if !gestemd}
-                    <div class="flex flex-col gap-4">
+                    <div class="flex flex-col columns-3xs gap-4">
                         {#each antwoorden as antwoord}
                             {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
                                 <button
@@ -585,6 +638,25 @@
                                         </p>
                                     {/if}
                                 </button>
+                            {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                                <button
+                                    class={antwoordStemKnopStijl.get(richting)}
+                                    disabled={antwoord.spelerId == socket.id}
+                                    on:click={() => stem(antwoord.spelerId)}
+                                >
+                                    <img
+                                        class="w-1/3"
+                                        src={antwoord.data.toString()}
+                                        alt="Het ingezonden antwoord"
+                                    />
+                                    {#if antwoord.spelerId == socket.id}
+                                        <p class="text-sm">
+                                            Zeg, flauwe plezante, da's uw eigen
+                                            antwoord.
+                                        </p>
+                                    {/if}
+                                </button>
+                                <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
                             {/if}
                         {/each}
                     </div>
