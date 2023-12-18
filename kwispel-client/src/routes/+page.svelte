@@ -17,6 +17,7 @@
         spelerAntwoordLaadStijl,
     } from "$lib/Stijlen";
     import Teambadge from "$lib/Teambadge.svelte";
+    import FotoUploader from "$lib/FotoUploader.svelte";
 
     $: spelers = [] as Gast[];
 
@@ -561,6 +562,8 @@
                             on:click={verstuurAntwoord}>Dien antwoord in</button
                         >
                     </div>
+                {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                    <FotoUploader spelerRichting={richting} />
                 {/if}
             {:else if lokaleKwis.fase == "stemmen"}
                 {#if !gestemd}
