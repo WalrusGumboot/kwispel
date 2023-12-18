@@ -18,7 +18,7 @@ services:
     build:
       context: ./kwispel-proxy
     ports:
-      - "80:80"
+      - "5172:5172"
     depends_on:
       - server
       - frontend
