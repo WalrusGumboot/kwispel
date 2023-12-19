@@ -31,9 +31,3 @@ export const eigenSpelerStijl: Stijl = new Map([
     ["Wiskunde", "bg-wiskunde-200 p-4 rounded-md"],
     ["Fysica", "bg-fysica-200 p-4 rounded-md"],
 ])
-
-export const spelerAntwoordLaadStijl: Stijl = new Map([
-    [undefined, "bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"],
-    ["Wiskunde", "bg-wiskunde-200 rounded-md p-4 mb-4 flex flex-row justify-between"],
-    ["Fysica", "bg-fysica-200 rounded-md p-4 mb-4 flex flex-row justify-between"],
-])

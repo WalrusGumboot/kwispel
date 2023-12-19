@@ -1,7 +1,9 @@
 <script lang="ts">
     import { fly } from "svelte/transition";
 
+    // @ts-expect-error // natuurlijk is er geen typescript inhoud voor een fucking GIF achterlijk framework
     import loadingImg from "../assets/loading.gif";
+    // @ts-expect-error
     import doneImg from "../assets/checkmark.png";
 
     import { io } from "socket.io-client";
@@ -14,10 +16,12 @@
         eigenSpelerStijl,
         headingStijl,
         knopStijl,
-        spelerAntwoordLaadStijl,
     } from "$lib/Stijlen";
     import Teambadge from "$lib/Teambadge.svelte";
     import FotoUploader from "$lib/FotoUploader.svelte";
+
+    import { Gallery } from "flowbite-svelte";
+    import Layout from "./+layout.svelte";
 
     $: spelers = [] as Gast[];
 
@@ -210,6 +214,10 @@
     });
 
     function registreerNaam(gekozenRichting: Richting) {
+        if (teamNaam.length == 0) {
+            alert("Je naam kan niet leeg zijn, hè.");
+            return;
+        }
         socket
             .emitWithAck("registreerNaam", teamNaam, gekozenRichting)
             .then(() => {
@@ -231,6 +239,7 @@
     let fotoData: string;
     function fotoInstelCallback(data: string) {
         fotoData = data;
+        console.log("foto ingesteld");
         verstuurAntwoord();
     }
 
@@ -265,8 +274,10 @@
         ) {
             teVersturenObject = fotoData;
         } else {
-            teVersturenObject = "ERROR - geen verzendbare data";
+            throw Error("ERROR - geen verzendbare data");
         }
+
+        console.log(teVersturenObject);
 
         socket.emit("verstuurAntwoord", {
             getoond: false,
@@ -301,8 +312,11 @@
         console.dir(spelers);
     }
 
+    let alGezochtNaarKinders = false;
+
     function startHerverbindbaarQueeste() {
         socket.emit("watZullenWeHerverbinden", (weeskinders: Gast[]) => {
+            alGezochtNaarKinders = true;
             weeskinderen = weeskinders;
         });
     }
@@ -370,9 +384,7 @@
                                 <!-- spelers verliezen mss verbinding -->
                                 {#each spelers as speler}
                                     <div
-                                        class={spelerAntwoordLaadStijl.get(
-                                            speler.richting,
-                                        )}
+                                        class="bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"
                                     >
                                         <h3 class="text-xl">{speler.naam}</h3>
                                         <img
@@ -391,32 +403,45 @@
                         </div>
                     </div>
                 {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
-                    <div class="flex flex-col gap-6 min-w-full">
-                        {#each antwoorden as antwoord}
-                            {#if antwoord.getoond}
-                                <div
-                                    class="p-4 text-lg bg-white rounded-md min-w-full"
-                                    transition:fly={{
-                                        y: 200,
-                                        duration: 500,
-                                    }}
-                                >
-                                    {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                    {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
+                        <div class="flex flex-col gap-6 min-w-full">
+                            {#each antwoorden as antwoord}
+                                {#if antwoord.getoond}
+                                    <div
+                                        class="p-4 text-lg bg-white rounded-md min-w-full"
+                                        transition:fly={{
+                                            y: 200,
+                                            duration: 500,
+                                        }}
+                                    >
                                         <p>
                                             {vulTemplateIn(antwoord.data)}
                                         </p>
-                                    {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
-                                        <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
+                                    </div>
+                                {/if}
+                            {/each}
+                        </div>
+                    {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                        <Gallery class="gap-4 grid-cols-4">
+                            {#each antwoorden.toReversed() as antwoord}
+                                {#if antwoord.getoond}
+                                    <div
+                                        class="p-4 text-lg bg-white rounded-md min-w-full"
+                                        transition:fly={{
+                                            y: 200,
+                                            duration: 500,
+                                        }}
+                                    >
                                         <img
-                                            class="w-1/2"
                                             src={antwoord.data.toString()}
-                                            alt="Het ingezonden antwoord"
+                                            alt="de geüploade afbeelding"
+                                            class="w-max h-auto"
                                         />
-                                    {/if}
-                                </div>
-                            {/if}
-                        {/each}
-                    </div>
+                                    </div>
+                                {/if}
+                            {/each}
+                        </Gallery>
+                    {/if}
                 {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
                     <div
                         class="flex flex-row min-w-full gap-12 mb-12 justify-stretch"
@@ -427,30 +452,32 @@
                             <h2 class="text-2xl font-bold text-blue-800 mb-6">
                                 Antwoorden
                             </h2>
-                            {#each antwoorden as antwoord}
-                                <div
-                                    class={eigenSpelerStijl.get(
-                                        ageer(
-                                            antwoord.spelerId,
-                                            (g) => g.richting,
-                                        ),
-                                    )}
-                                >
+                            {#each antwoorden.toSorted((a, b) => b.stemmen - a.stemmen) as antwoord}
+                                <div class="bg-blue-200 rounded-md p-4">
                                     <p class="text-lg font-bold mb-3">
                                         {ageer(
                                             antwoord.spelerId,
                                             (g) => g.naam,
                                         )}
+
+                                        ({antwoord.stemmen}
+                                        {antwoord.stemmen == 1
+                                            ? "stem"
+                                            : "stemmen"})
                                     </p>
                                     {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
                                         {vulTemplateIn(antwoord.data)}
                                     {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
-                                        <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
-                                        <img
-                                            class="w-1/2"
-                                            src={antwoord.data.toString()}
-                                            alt="Het ingezonden antwoord"
-                                        />
+                                        <div
+                                            class="grow h-16 rounded-md overflow-hidden"
+                                        >
+                                            <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
+                                            <img
+                                                class="object-fill"
+                                                src={antwoord.data.toString()}
+                                                alt="Het ingezonden antwoord"
+                                            />
+                                        </div>
                                     {/if}
                                 </div>
                             {/each}
@@ -557,30 +584,33 @@
                     >
                 </div>
                 <div
-                    class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4"
+                    class="bg-white rounded-md shadow-md p-4 max-w-full flex flex-col gap-4"
                 >
                     <p>
                         Herverbind als je eerder de verbinding bent
-                        kwijtgeraakt.
+                        kwijtgeraakt. <b>Nota bene:</b> misschien nog een beetje
+                        buggy.
                     </p>
                     <button
                         class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
                         on:click={startHerverbindbaarQueeste}
                         >Zoek naar herverbindbare spelers</button
                     >
-                    {#if weeskinderen.length == 0}
-                        <p>Geen herverbindbare spelers gevonden.</p>
-                    {:else}
-                        {#each weeskinderen as weeskind}
-                            <button
-                                class="p-3 min-w-full"
-                                on:click={() => {
-                                    geefInfoBroer(weeskind);
-                                }}
-                            >
-                                {weeskind.naam}
-                            </button>
-                        {/each}
+                    {#if alGezochtNaarKinders}
+                        {#if weeskinderen.length == 0}
+                            <p>Geen herverbindbare spelers gevonden.</p>
+                        {:else}
+                            {#each weeskinderen as weeskind}
+                                <button
+                                    class="p-3 min-w-full"
+                                    on:click={() => {
+                                        geefInfoBroer(weeskind);
+                                    }}
+                                >
+                                    {weeskind.naam}
+                                </button>
+                            {/each}
+                        {/if}
                     {/if}
                 </div>
             {:else if lokaleKwis.fase == "nogNietBegonnen"}
@@ -620,9 +650,9 @@
                 {/if}
             {:else if lokaleKwis.fase == "stemmen"}
                 {#if !gestemd}
-                    <div class="flex flex-col columns-3xs gap-4">
-                        {#each antwoorden as antwoord}
-                            {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
+                    {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort === "tekst"}
+                        <div class="flex flex-col columns-3xs gap-4">
+                            {#each antwoorden as antwoord}
                                 <button
                                     class={antwoordStemKnopStijl.get(richting)}
                                     disabled={antwoord.spelerId == socket.id}
@@ -638,14 +668,18 @@
                                         </p>
                                     {/if}
                                 </button>
-                            {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                            {/each}
+                        </div>
+                    {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
+                        <Gallery class="gap-4 grid-cols-3">
+                            {#each antwoorden.toReversed() as antwoord}
                                 <button
                                     class={antwoordStemKnopStijl.get(richting)}
                                     disabled={antwoord.spelerId == socket.id}
                                     on:click={() => stem(antwoord.spelerId)}
                                 >
                                     <img
-                                        class="w-1/3"
+                                        class="w-max h-auto"
                                         src={antwoord.data.toString()}
                                         alt="Het ingezonden antwoord"
                                     />
@@ -657,9 +691,9 @@
                                     {/if}
                                 </button>
                                 <!-- deze gekke toString is nodig (ook al is het eigenlijk al een string) voor typechecking redenen -->
-                            {/if}
-                        {/each}
-                    </div>
+                            {/each}
+                        </Gallery>
+                    {/if}
                 {:else}
                     <p>Bedankt voor je stem! We wachten nog op de rest.</p>
                 {/if}

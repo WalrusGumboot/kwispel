@@ -7,7 +7,8 @@ const io = new Server(server, {
     connectionStateRecovery: {},
     cors: {
         origin: "*"
-    }
+    },
+    maxHttpBufferSize: 10_000_000 // 10 MB, zoals ook de nginx reverse proxy werkt
 })
 server.listen(
     3141,
@@ -62,7 +63,16 @@ io.on('connection', (socket) => {
         gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined });
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin  geregistreerd]');
-    }
+    } 
+    // else {
+    //     // we gaan kijken of er een herregistratie na het wegvallen van een verbinding nodig is
+    //     let mogelijksWeeskind = weeskinders.find((e) => e.id === socket.id)
+    //     if (mogelijksWeeskind !== undefined) {
+    //         weeskinders = weeskinders.filter((g) => g.id !== socket.id); // weghalen van weeskind
+    //         gasten.push(mogelijksWeeskind)
+    //         stuurNaarAdmin("idVeranderingKennisgeving", mogelijksWeeskind.id, socket.id) // zorgt ervoor dat de speler bij de admin terug bijkomt
+    //     }
+    // }
     // else {
     //     if (idAanwezig(socket.id)) {
     //         console.log(' ↳ [speler al gekend, niet opnieuw geregistreerd]');
@@ -80,10 +90,11 @@ io.on('connection', (socket) => {
                 console.log(`[                      ] - nu is ${gast.naam} een weeskind`)
                 if (gast.admin) {
                     console.log(" ↳ [WARN] het was de adminconnectie")
+                } else {
+                    gasten = gasten.filter((g) => g.id !== gast.id);
+                    weeskinders.push(gast)
+                    stuurNaarAdmin("weeskindKennisgeving", gast);
                 }
-                gasten = gasten.filter((g) => g.id !== gast.id);
-                weeskinders.push(gast)
-                stuurNaarAdmin("weeskindKennisgeving", gast);
             }
         })
     })

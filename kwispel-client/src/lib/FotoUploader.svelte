@@ -6,16 +6,23 @@
 
     export let dataOntvangenCallback: (data: string) => void;
 
-    let geüploadeBestanden: any;
+    let geüploadeBestanden: FileList;
     let geüploadeFoto: string;
 
     let fotoInput: HTMLInputElement;
 
     function alsBase64(foto: Blob) {
+        // file size check
+        if (geüploadeBestanden[0].size > 4 * 1024 * 1024) {
+            alert("Deze foto is groter dan 4 MiB. Kies een foto die kleiner is.");
+            return;
+        }
+
         const reader = new FileReader();
         reader.readAsDataURL(foto);
         reader.onload = (e) => {
             geüploadeFoto = e.target?.result?.toString()!;
+            console.log(geüploadeFoto)
         };
     }
 </script>
@@ -27,7 +34,7 @@
         bind:files={geüploadeBestanden}
         bind:this={fotoInput}
         on:change={() => alsBase64(geüploadeBestanden[0])}
-        accept=".jpg, .png, .jpeg, .JPEG, .JPG, .PNG"
+        accept=".jpg, .png, .jpeg, .gif, .JPG, .PNG, .JPEG, .GIF"
         type="file"
     />
     <button
