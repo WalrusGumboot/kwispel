@@ -4,14 +4,14 @@ services:
       context: .
       dockerfile: ./kwispel-server/Dockerfile
     ports:
-      - "3141:3141"
+      - "3141"
     networks:
       - kwispel-netwerk
   frontend:
     build: 
       context: ./kwispel-client
     ports:
-      - "5173:5173"
+      - "5173"
     networks:
       - kwispel-netwerk
   proxy:

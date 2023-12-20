@@ -1,9 +1,7 @@
 <script lang="ts">
     import { fly } from "svelte/transition";
 
-    // @ts-expect-error // natuurlijk is er geen typescript inhoud voor een fucking GIF achterlijk framework
     import loadingImg from "../assets/loading.gif";
-    // @ts-expect-error
     import doneImg from "../assets/checkmark.png";
 
     import { io } from "socket.io-client";
@@ -21,7 +19,6 @@
     import FotoUploader from "$lib/FotoUploader.svelte";
 
     import { Gallery } from "flowbite-svelte";
-    import Layout from "./+layout.svelte";
 
     $: spelers = [] as Gast[];
 
