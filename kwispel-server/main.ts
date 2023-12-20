@@ -9,8 +9,8 @@ const io = new Server(server, {
         origin: "*"
     },
     maxHttpBufferSize: 10_000_000, // 10 MB, zoals ook de nginx reverse proxy werkt,
-    pingInterval: 60000,
-    pingTimeout: 120000
+    // pingInterval: 60000,
+    // pingTimeout: 120000
 })
 server.listen(
     3141,
