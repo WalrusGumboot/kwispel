@@ -8,7 +8,9 @@ const io = new Server(server, {
     cors: {
         origin: "*"
     },
-    maxHttpBufferSize: 10_000_000 // 10 MB, zoals ook de nginx reverse proxy werkt
+    maxHttpBufferSize: 10_000_000, // 10 MB, zoals ook de nginx reverse proxy werkt,
+    pingInterval: 60000,
+    pingTimeout: 120000
 })
 server.listen(
     3141,
@@ -82,6 +84,12 @@ io.on('connection', (socket) => {
     //         console.log(' ↳ [speler geregistreerd]');
     //     }
     // }
+
+    socket.on("forceerKwisStatus", (nieuweStatus) => {
+        kwis.fase = nieuweStatus;
+        console.log(`[geforceerde kwisstatus] ${nieuweStatus}`)
+        socket.emit("kwisUpdate", kwis);
+    })
 
     socket.on("disconnect", (reden) => {
         ageer(socket.id, (gast) => {

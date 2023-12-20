@@ -309,6 +309,14 @@
         console.dir(spelers);
     }
 
+    function kwisStatusForceer(status: string) {
+        socket.emit("forceerKwisStatus", status);
+    }
+
+    function logKwisStatus() {
+        console.log(lokaleKwis);
+    }
+
     let alGezochtNaarKinders = false;
 
     function startHerverbindbaarQueeste() {
@@ -339,12 +347,47 @@
         {#if actieveVerbinding}
             <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
             {#if admin}
-                <button
-                    class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                    on:click={spelerInfo}
-                >
-                    Log spelerinformatie
-                </button>
+                <div class="flex flex-row gap-4 mb-4">
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={spelerInfo}
+                    >
+                        Log spelerinformatie
+                    </button>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={() =>
+                            kwisStatusForceer("antwoordenVerzamelen")}
+                    >
+                        kwisStatus = antwoordenVerzamelen
+                    </button>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={() =>
+                            kwisStatusForceer("antwoordenPresenteren")}
+                    >
+                        kwisStatus = antwoorden presenteren
+                    </button>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={() => kwisStatusForceer("stemmen")}
+                    >
+                        kwisStatus = Stemmen
+                    </button>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={() =>
+                            kwisStatusForceer("stemresulatenPresenteren")}
+                    >
+                        kwisStatus = stemresulatenPresenteren
+                    </button>
+                    <button
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
+                        on:click={logKwisStatus}
+                    >
+                        log kwis status
+                    </button>
+                </div>
                 {#if lokaleKwis.fase == "nogNietBegonnen"}
                     <h2 class="text-xl">Welkom, admin.</h2>
                     <div class="flex flex-col bg-white rounded-md p-6 gap-3">
