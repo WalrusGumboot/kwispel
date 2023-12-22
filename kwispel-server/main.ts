@@ -64,7 +64,7 @@ io.on('connection', (socket) => {
     if (gasten.length === 0) {
         gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined });
         socket.emit("adminKennisgeving");
-        console.log(' ↳ [admin  geregistreerd]');
+        console.log(' ↳ [admin geregistreerd]');
     } 
     // else {
     //     // we gaan kijken of er een herregistratie na het wegvallen van een verbinding nodig is

@@ -159,6 +159,7 @@
             )!;
             geadopteedKind.id = nieuweId;
             spelers = [...spelers, geadopteedKind];
+            weeskinderen = weeskinderen.filter((g) => g.id !== geadopteerdKindId)
         },
     );
 
