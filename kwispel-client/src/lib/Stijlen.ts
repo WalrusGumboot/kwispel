@@ -31,3 +31,7 @@ export const eigenSpelerStijl: Stijl = new Map([
     ["Wiskunde", "bg-wiskunde-200 p-4 rounded-md"],
     ["Fysica", "bg-fysica-200 p-4 rounded-md"],
 ])
+
+export function stijl(stijlMap: Stijl, richting: Richting): string {
+   return stijlMap.get(richting)!
+}

@@ -9,8 +9,6 @@ const io = new Server(server, {
         origin: "*"
     },
     maxHttpBufferSize: 10_000_000, // 10 MB, zoals ook de nginx reverse proxy werkt,
-    // pingInterval: 60000,
-    // pingTimeout: 120000
 })
 server.listen(
     3141,
@@ -23,8 +21,6 @@ import type { Gast, Richting } from "../kwispel-client/src/lib/Gast";
 import { standaardKwis, type Kwis } from "../kwispel-client/src/lib/Kwis";
 import type { Antwoord } from "../kwispel-client/src/lib/Antwoord";
 
-let gasten: Gast[] = [];
-let weeskinders: Gast[] = []; // spelers wiens oorspronkelijke socketverbinding weg is gevallen
 let kwis: Kwis = standaardKwis;
 let antwoorden: Antwoord[] = [];
 
@@ -32,7 +28,7 @@ class GeenSpelerError extends Error { }
 class MeerdereGastenError extends Error { }
 
 function ageer<T>(id: string, functie: (gast: Gast) => T): T {
-    let matchendeIds = gasten.filter((gast) => gast.id === id);
+    let matchendeIds = kwis.spelers.filter((gast) => gast.id === id);
     if (matchendeIds.length === 1) {
         return functie(matchendeIds[0]);
     } else if (matchendeIds.length === 0) {
@@ -45,7 +41,6 @@ function ageer<T>(id: string, functie: (gast: Gast) => T): T {
 }
 
 function ageerAdmin<T>(functie: (gast: Gast) => T): T {
-    let admin = gasten.find((g) => g.admin)
     if (admin !== undefined) {
         return functie(admin);
     } else {
@@ -58,11 +53,13 @@ function stuurNaarAdmin(ev: string, ...args: any[]) {
     console.log(`   [naar admin]: ${ev} met args ${args}`)
 }
 
+let admin: Gast;
+
 io.on('connection', (socket) => {
     // CONNECTIELOGICA
     console.log(`[nieuwe verbinding] ${socket.id.substring(16)}`);
-    if (gasten.length === 0) {
-        gasten.push({ id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined });
+    if (admin === undefined) {
+        admin = { id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined };
         socket.emit("adminKennisgeving");
         console.log(' ↳ [admin geregistreerd]');
     } 
@@ -99,9 +96,9 @@ io.on('connection', (socket) => {
                 if (gast.admin) {
                     console.log(" ↳ [WARN] het was de adminconnectie")
                 } else {
-                    gasten = gasten.filter((g) => g.id !== gast.id);
-                    weeskinders.push(gast)
-                    stuurNaarAdmin("weeskindKennisgeving", gast);
+                    kwis.spelers = kwis.spelers.filter((g) => g.id !== gast.id);
+                    kwis.weeskinderen.push(gast)
+                    stuurNaarAdmin("weeskindKennisgeving", kwis);
                 }
             }
         })
@@ -109,22 +106,22 @@ io.on('connection', (socket) => {
 
     socket.on("watZullenWeHerverbinden", (callback: (weeskinders: Gast[]) => void) => {
         console.log(`[weeskinderen aanvraag] van socket ${socket.id.substring(16)}`)
-        console.log(`[                     ] teruggegeven: ${weeskinders}`)
-        callback(weeskinders);
+        console.log(`[                     ] teruggegeven: ${kwis.weeskinderen}`)
+        callback(kwis.weeskinderen);
     })
 
     socket.on("infoburstAanvraag", (geadopteerdKind: Gast, callback: (kwisStatus: Kwis) => void) => {
-        weeskinders = weeskinders.filter((g) => g.id !== geadopteerdKind.id);
-        stuurNaarAdmin("idVeranderingKennisgeving", geadopteerdKind.id, socket.id)
+        kwis.weeskinderen = kwis.weeskinderen.filter((g) => g.id !== geadopteerdKind.id);
         console.log(`[adoptie] tegen de admin gezegd dat weeskind met id ${geadopteerdKind.id} nu van id ${socket.id} is`)
-        gasten.push({ ...geadopteerdKind, id: socket.id });
+        kwis.spelers.push({ ...geadopteerdKind, id: socket.id });
+        stuurNaarAdmin("kwisUpdate", kwis)
         callback(kwis)
-        socket.emit("scorebord", gasten.filter((e) => !e.admin))
+        socket.emit("scorebord", kwis.spelers.filter((e) => !e.admin))
     })
 
     // NAAMREGISTRATIE
     socket.on("registreerNaam", (naam: string, richting: Richting, callback: (ret: string) => void) => {
-        gasten.push({ admin: false, naam, id: socket.id, punten: 0, richting })
+        kwis.spelers.push({ admin: false, naam, id: socket.id, punten: 0, richting })
         console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}"`)
         stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
         callback("naam geregistreerd.")
@@ -143,7 +140,7 @@ io.on('connection', (socket) => {
         antwoorden.push(antwoord)
         stuurNaarAdmin("antwoordKennisgeving", antwoord);
 
-        if (antwoorden.length === gasten.length - 1) {
+        if (antwoorden.length === kwis.spelers.length) {
             kwis.fase = "antwoordenPresenteren";
             io.emit("kwisUpdate", kwis);
         }
@@ -152,7 +149,7 @@ io.on('connection', (socket) => {
     socket.on("klaarVoorStemmen", () => {
         console.log("[klaar voor stemming]")
         kwis.fase = "stemmen";
-        io.except(gasten.find((g) => g.admin)!.id).emit("declareerAntwoorden", antwoorden);
+        io.except(admin.id).emit("declareerAntwoorden", antwoorden);
         io.emit("kwisUpdate", kwis)
     })
 
@@ -167,15 +164,15 @@ io.on('connection', (socket) => {
         console.dir(puntenMap)
 
         for (let [id, punten] of puntenMap) {
-            gasten = ageer(id, (g: Gast) => {
+            kwis.spelers = ageer(id, (g: Gast) => {
                 g.punten = punten;
                 console.log(`speler ${g.naam} heeft nu ${punten} punten`);
-                return gasten;
+                return kwis.spelers;
             })
         }
         kwis.fase = "stemresulatenPresenteren";
         io.emit("kwisUpdate", kwis);
-        io.emit("scorebord", gasten.filter((e) => !e.admin))
+        io.except(admin.id).emit("scorebord")
     })
 
     socket.on("volgendeVraag", () => {
@@ -192,11 +189,3 @@ io.on('connection', (socket) => {
         console.log("[kwis klaar]")
     })
 });
-
-// for await (const line of console) {
-//     try {
-//         console.log(eval?.(line));
-//     } catch (e) {
-//         console.error(e)
-//     }
-// }

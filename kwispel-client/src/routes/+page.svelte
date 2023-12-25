@@ -14,16 +14,17 @@
         eigenSpelerStijl,
         headingStijl,
         knopStijl,
+        stijl,
     } from "$lib/Stijlen";
     import Teambadge from "$lib/Teambadge.svelte";
     import FotoUploader from "$lib/FotoUploader.svelte";
 
     import { Gallery } from "flowbite-svelte";
 
-    $: spelers = [] as Gast[];
+    $: lokaleKwis = standaardKwis;
 
     function ageer<T>(id: string, functie: (gast: Gast) => T): T {
-        let matchendeIds = spelers.filter((gast) => gast.id === id);
+        let matchendeIds = lokaleKwis.spelers.filter((gast) => gast.id === id);
         if (matchendeIds.length === 1) {
             return functie(matchendeIds[0]);
         } else {
@@ -78,14 +79,12 @@
     socket.on(
         "naamRegistratieKennisgeving",
         (id: string, naam: string, richting: Richting) => {
-            spelers = [
-                ...spelers,
+            lokaleKwis.spelers = [
+                ...lokaleKwis.spelers,
                 { naam, id, richting, punten: 0, admin: false },
             ];
         },
     );
-
-    $: lokaleKwis = standaardKwis;
 
     let antwoordenTonenInterval: NodeJS.Timeout;
     $: antwoorden = [] as Antwoord[];
@@ -138,30 +137,10 @@
         antwoorden = [...antwoorden, antwoord];
     });
 
-    socket.on("weeskindKennisgeving", (weeskind: Gast) => {
-        console.log("weeskind kennisgeving");
-        console.log(`weeskind: ${weeskind.id}`);
-        spelers = spelers.filter((e) => {
-            console.log(`elem: ${e.id}`);
-            console.log(`exact gelijk: ${e.id === weeskind.id}`);
-            console.log(`beetje gelijk: ${e.id == weeskind.id}`);
-            return e.id !== weeskind.id;
-        });
+    socket.on("weeskindKennisgeving", (kwis: Kwis) => {
+        integreerKwis(kwis);
         checkVoorStemVolledigheid();
-        weeskinderen = [...weeskinderen, weeskind];
     });
-
-    socket.on(
-        "idVeranderingKennisgeving",
-        (geadopteerdKindId: string, nieuweId: string) => {
-            let geadopteedKind = weeskinderen.find(
-                (e) => e.id === geadopteerdKindId,
-            )!;
-            geadopteedKind.id = nieuweId;
-            spelers = [...spelers, geadopteedKind];
-            weeskinderen = weeskinderen.filter((g) => g.id !== geadopteerdKindId)
-        },
-    );
 
     socket.on("stemKennisgeving", (id: string) => {
         console.log("er is gestemd op antwoord van id ", id);
@@ -174,7 +153,7 @@
 
     function checkVoorStemVolledigheid() {
         // dit voorkomt het stilvallen van het spel als er twee verbindingen zijn, waarvan er eentje wegvalt tijdens het stemmen
-        if (spelers.length === 1 && antwoorden[0].stemmen === 0) {
+        if (lokaleKwis.spelers.length === 1 && antwoorden[0].stemmen === 0) {
             antwoorden[0].stemmen = 1;
         }
 
@@ -182,21 +161,23 @@
             .map((a) => a.stemmen)
             .reduce((prev, current) => prev + current, 0);
 
-        if (aantalStemmen == spelers.length) {
+        if (aantalStemmen == lokaleKwis.spelers.length) {
             console.log("genoeg stemmen bereikt; iedereen heeft gestemd.");
 
-            console.log(spelers);
+            console.log(lokaleKwis.spelers);
 
             for (let antwoord of antwoorden) {
-                spelers = ageer(antwoord.spelerId, (g) => {
+                lokaleKwis.spelers = ageer(antwoord.spelerId, (g) => {
                     g.punten += PUNTEN_PER_STEM * antwoord.stemmen;
-                    return spelers;
+                    return lokaleKwis.spelers;
                 });
             }
 
+            lokaleKwis = lokaleKwis;
+
             let puntenMap: Map<string, number> = new Map();
 
-            for (let speler of spelers) {
+            for (let speler of lokaleKwis.spelers) {
                 puntenMap.set(speler.id, speler.punten);
             }
 
@@ -205,11 +186,6 @@
             socket.emit("puntentelling", Array.from(puntenMap.entries()));
         }
     }
-
-    $: leaderboardInfo = [] as Gast[]; // enkel te gebruiken in speler als leaderboard info
-    socket.on("scorebord", (scorebord) => {
-        leaderboardInfo = scorebord;
-    });
 
     function registreerNaam(gekozenRichting: Richting) {
         if (teamNaam.length == 0) {
@@ -301,13 +277,11 @@
         socket.emit("eindigKwis");
     }
 
-    $: weeskinderen = [] as Gast[];
-
     function spelerInfo() {
-        console.log("Weeskinderen:");
-        console.dir(weeskinderen);
         console.log("Spelers:");
-        console.dir(spelers);
+        console.dir(lokaleKwis.spelers);
+        console.log("Weeskinderen:");
+        console.dir(lokaleKwis.weeskinderen);
     }
 
     function kwisStatusForceer(status: string) {
@@ -323,7 +297,7 @@
     function startHerverbindbaarQueeste() {
         socket.emit("watZullenWeHerverbinden", (weeskinders: Gast[]) => {
             alGezochtNaarKinders = true;
-            weeskinderen = weeskinders;
+            lokaleKwis.weeskinderen = weeskinders;
         });
     }
 
@@ -343,7 +317,7 @@
 </script>
 
 {#key richting}
-    <div class={achtergrondStijl.get(richting)}>
+    <div class={stijl(achtergrondStijl, richting)}>
         <h1 class="text-3xl font-bold mb-6">kwispel</h1>
         {#if actieveVerbinding}
             <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
@@ -394,11 +368,11 @@
                     <div class="flex flex-col bg-white rounded-md p-6 gap-3">
                         <h3 class="text-lg">Verbonden spelers</h3>
                         <hr class="mb-2" />
-                        {#key spelers}
-                            {#each spelers as speler}
+                        {#key lokaleKwis}
+                            {#each lokaleKwis.spelers as speler}
                                 <p>{speler.id} heet {speler.naam}</p>
                             {/each}
-                            {#if spelers.length >= 2}
+                            {#if lokaleKwis.spelers.length >= 2}
                                 <button
                                     class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
                                     on:click={startKwis}>Start kwis</button
@@ -421,15 +395,15 @@
                             </h2>
                         </div>
                         <div class="columns-2 p-6 basis-2/3">
-                            {#key spelers}
+                            {#key lokaleKwis}
                                 <!-- spelers verliezen mss verbinding -->
-                                {#each spelers as speler}
+                                {#each lokaleKwis.spelers as speler}
                                     <div
                                         class="bg-blue-200 rounded-md p-4 mb-4 flex flex-row justify-between"
                                     >
                                         <h3 class="text-xl">{speler.naam}</h3>
                                         <img
-                                            class="w-8 aspect-square object-fit"
+                                            class="w-8 h-8 object-fit"
                                             src={antwoorden.some(
                                                 (a) => a.spelerId === speler.id,
                                             )
@@ -529,10 +503,11 @@
                             <h2 class="text-2xl font-bold text-blue-800 mb-6">
                                 Leaderboard
                             </h2>
-                            {#key spelers}
-                                {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
+                            {#key lokaleKwis}
+                                {#each lokaleKwis.spelers.toSorted((a, b) => b.punten - a.punten) as speler}
                                     <div
-                                        class={eigenSpelerStijl.get(
+                                        class={stijl(
+                                            eigenSpelerStijl,
                                             speler.richting,
                                         )}
                                     >
@@ -544,7 +519,7 @@
                         </div>
                     </div>
                     <button
-                        class={knopStijl.get(richting)}
+                        class={stijl(knopStijl, richting)}
                         on:click={lokaleKwis.vragen.length - 1 ==
                         lokaleKwis.huidigeVraagIdx
                             ? () => {
@@ -561,8 +536,9 @@
                 {:else if lokaleKwis.fase == "beëindigd"}
                     <h2 class="text-3xl mb-8">
                         Gefeliciteerd, <b
-                            >{spelers.toSorted((a, b) => b.punten - a.punten)[0]
-                                .naam}</b
+                            >{lokaleKwis.spelers.toSorted(
+                                (a, b) => b.punten - a.punten,
+                            )[0].naam}</b
                         >!
                     </h2>
 
@@ -576,8 +552,10 @@
                                 Team <span class="text-wiskunde-500 font-bold"
                                     >Wiskunde</span
                                 >
-                                heeft {puntenVoorTeam("Wiskunde", spelers)} punten
-                                gescoord!
+                                heeft {puntenVoorTeam(
+                                    "Wiskunde",
+                                    lokaleKwis.spelers,
+                                )} punten gescoord!
                             </h3>
                         </div>
 
@@ -588,15 +566,17 @@
                                 Team <span class="text-fysica-500 font-bold"
                                     >Fysica</span
                                 >
-                                heeft {puntenVoorTeam("Fysica", spelers)} punten
-                                gescoord!
+                                heeft {puntenVoorTeam(
+                                    "Fysica",
+                                    lokaleKwis.spelers,
+                                )} punten gescoord!
                             </h3>
                         </div>
                     </div>
 
                     <div class="rounded-md bg-white p-12 flex flex-col gap-3">
-                        {#each spelers.toSorted((a, b) => b.punten - a.punten) as speler}
-                            <div class={eigenSpelerStijl.get(speler.richting)}>
+                        {#each lokaleKwis.spelers.toSorted((a, b) => b.punten - a.punten) as speler}
+                            <div class={stijl(eigenSpelerStijl, speler.richting)}>
                                 <p>{speler.naam}: {speler.punten}</p>
                             </div>
                         {/each}
@@ -638,10 +618,10 @@
                         >Zoek naar herverbindbare spelers</button
                     >
                     {#if alGezochtNaarKinders}
-                        {#if weeskinderen.length == 0}
+                        {#if lokaleKwis.weeskinderen.length == 0}
                             <p>Geen herverbindbare spelers gevonden.</p>
                         {:else}
-                            {#each weeskinderen as weeskind}
+                            {#each lokaleKwis.weeskinderen as weeskind}
                                 <button
                                     class="p-3 min-w-full"
                                     on:click={() => {
@@ -658,7 +638,7 @@
                 <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>
                 <p>
                     Het is nu een kwestie van wachten tot de kwis van start
-                    gaat.
+                    gaat, of tot de volgende vraag gesteld wordt.
                 </p>
             {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
                 <h3 class="text-xl mb-3">
@@ -679,7 +659,7 @@
                             />
                         {/each}
                         <button
-                            class={knopStijl.get(richting)}
+                            class={stijl(knopStijl, richting)}
                             on:click={verstuurAntwoord}>Dien antwoord in</button
                         >
                     </div>
@@ -695,7 +675,7 @@
                         <div class="flex flex-col columns-3xs gap-4">
                             {#each antwoorden as antwoord}
                                 <button
-                                    class={antwoordStemKnopStijl.get(richting)}
+                                    class={stijl(antwoordStemKnopStijl, richting)}
                                     disabled={antwoord.spelerId == socket.id}
                                     on:click={() => stem(antwoord.spelerId)}
                                 >
@@ -715,7 +695,7 @@
                         <Gallery class="gap-4 grid-cols-3">
                             {#each antwoorden.toReversed() as antwoord}
                                 <button
-                                    class={antwoordStemKnopStijl.get(richting)}
+                                    class={stijl(antwoordStemKnopStijl, richting)}
                                     disabled={antwoord.spelerId == socket.id}
                                     on:click={() => stem(antwoord.spelerId)}
                                 >
@@ -739,11 +719,11 @@
                     <p>Bedankt voor je stem! We wachten nog op de rest.</p>
                 {/if}
             {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
-                <h2 class={headingStijl.get(richting)}>Leaderboard</h2>
+                <h2 class={stijl(headingStijl, richting)}>Leaderboard</h2>
                 <div class="flex flex-col gap-6 min-w-full justify-stretch">
-                    {#each leaderboardInfo.toSorted((a, b) => b.punten - a.punten) as speler}
+                    {#each lokaleKwis.spelers.toSorted((a, b) => b.punten - a.punten) as speler}
                         {#if speler.id == socket.id}
-                            <div class={eigenSpelerStijl.get(richting)}>
+                            <div class={stijl(eigenSpelerStijl, richting)}>
                                 <p class="font-bold">
                                     {speler.naam}: {speler.punten}
                                 </p>
