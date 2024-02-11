@@ -3,6 +3,7 @@
 
     import loadingImg from "../assets/loading.gif";
     import doneImg from "../assets/checkmark.png";
+    import winalied from "../assets/winalied.wav";
 
     import { io } from "socket.io-client";
     import type { Gast, Richting } from "$lib/Gast";
@@ -87,6 +88,7 @@
     );
 
     let antwoordenTonenInterval: NodeJS.Timeout;
+    const ANTWOORDEN_TUSSENPOOS = 1000;
     $: antwoorden = [] as Antwoord[];
 
     // wordt enkel naar spelers gestuurd, niet de admin
@@ -112,17 +114,18 @@
                     clearInterval(antwoordenTonenInterval);
                     socket.emit("klaarVoorStemmen");
                 }
-            }, 1000);
-        }
-
-        if (nieuweStatus.fase === "stemmen") {
-            gestemd = false;
+            }, ANTWOORDEN_TUSSENPOOS);
         }
 
         if (nieuweStatus.fase === "antwoordenVerzamelen") {
             fotoData = ""; // dit werkt want "" is falsy in JavaScript
             antwoordVerstuurd = false;
         }
+
+        if (nieuweStatus.fase === "antwoordenPresenteren") {
+            gestemd = false;
+        }
+
 
         lokaleKwis = nieuweStatus;
         tekstPlaceholders = extraheerPlaceholders();
@@ -306,6 +309,7 @@
             integreerKwis(kwisStatus);
             teamNaamGekozen = true;
             teamNaam = weeskind.naam!;
+            richting = weeskind.richting!;
         });
     }
 
@@ -314,77 +318,136 @@
             .filter((e) => e.richting == richting)
             .reduce((acc, curr) => acc + curr.punten, 0);
     }
+
+    let adminPanel = false;
+    let adminPanelBreedte;
+
+    function togglePaneel() {
+        adminPanel = !adminPanel;
+    }
+
+    function kickSpeler(id: string) {
+        socket.emit("kickSpeler", id);
+    }
+
+    socket.on("kickMededeling", () => {
+        socket.close();
+        actieveVerbinding = false;
+        window.close();
+    });
 </script>
 
 {#key richting}
     <div class={stijl(achtergrondStijl, richting)}>
-        <h1 class="text-3xl font-bold mb-6">kwispel</h1>
+        <div class="flex flex-row gap-x-6 mb-6">
+            <button on:click={togglePaneel} class="text-4xl font-bold"
+                >kwispel</button
+            >
+        </div>
         {#if actieveVerbinding}
             <!-- <p class="mb-4">Verbonden met de spelserver: {socket.id}</p> -->
             {#if admin}
-                <div class="flex flex-row gap-4 mb-4">
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={spelerInfo}
+                <!-- <audio src={winalied} autoplay /> -->
+                {#if adminPanel}
+                    <div
+                        bind:clientWidth={adminPanelBreedte}
+                        transition:fly={{ x: adminPanelBreedte }}
+                        class="absolute top-0 right-0 h-screen flex flex-col content-stretch gap-4 mb-4 bg-white px-8 py-3"
                     >
-                        Log spelerinformatie
-                    </button>
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={() =>
-                            kwisStatusForceer("antwoordenVerzamelen")}
-                    >
-                        kwisStatus = antwoordenVerzamelen
-                    </button>
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={() =>
-                            kwisStatusForceer("antwoordenPresenteren")}
-                    >
-                        kwisStatus = antwoorden presenteren
-                    </button>
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={() => kwisStatusForceer("stemmen")}
-                    >
-                        kwisStatus = Stemmen
-                    </button>
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={() =>
-                            kwisStatusForceer("stemresulatenPresenteren")}
-                    >
-                        kwisStatus = stemresulatenPresenteren
-                    </button>
-                    <button
-                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all mb-4"
-                        on:click={logKwisStatus}
-                    >
-                        log kwis status
-                    </button>
-                </div>
+                        <h2 class="underline mb-2 text-gray-600 text-xl">
+                            Forceer kwisstatus
+                        </h2>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={() =>
+                                kwisStatusForceer("antwoordenVerzamelen")}
+                        >
+                            Antwoorden verzamelen
+                        </button>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={() =>
+                                kwisStatusForceer("antwoordenPresenteren")}
+                        >
+                            Antwoorden presenteren
+                        </button>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={() => kwisStatusForceer("stemmen")}
+                        >
+                            Stemmen
+                        </button>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={() =>
+                                kwisStatusForceer("stemresulatenPresenteren")}
+                        >
+                            Stemresulaten presenteren
+                        </button>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={logKwisStatus}
+                        >
+                            Kwisstatus
+                        </button>
+                        <h2 class="underline mb-2 text-gray-600 text-xl">
+                            console.log
+                        </h2>
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={spelerInfo}
+                        >
+                            Spelerinformatie
+                        </button>
+                        <div class="grow" />
+                        <button
+                            class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
+                            on:click={togglePaneel}
+                        >
+                            sluit paneel
+                        </button>
+                    </div>
+                {/if}
                 {#if lokaleKwis.fase == "nogNietBegonnen"}
-                    <h2 class="text-xl">Welkom, admin.</h2>
-                    <div class="flex flex-col bg-white rounded-md p-6 gap-3">
-                        <h3 class="text-lg">Verbonden spelers</h3>
-                        <hr class="mb-2" />
+                    <Gallery class="grid-cols-3 gap-3">
                         {#key lokaleKwis}
                             {#each lokaleKwis.spelers as speler}
-                                <p>{speler.id} heet {speler.naam}</p>
+                                <div
+                                    class="bg-white p-4 rounded-md flex-row justify-between group"
+                                    transition:fly={{ y: 30 }}
+                                >
+                                    <div>
+                                        <p class="text-xl font-bold">
+                                            {speler.naam}
+                                        </p>
+                                        <p class="text-sm">{speler.id}</p>
+                                        <p class="text-sm">
+                                            {speler.richting?.toString()}
+                                        </p>
+                                    </div>
+                                    <button
+                                        on:click={() => {
+                                            kickSpeler(speler.id);
+                                        }}
+                                        class="bg-red-500 text-white p-2 group-hover:opacity-100 opacity-0 hover:bg-red-800 transition-all rounded-md"
+                                    >
+                                        kick
+                                    </button>
+                                </div>
                             {/each}
                             {#if lokaleKwis.spelers.length >= 2}
                                 <button
                                     class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all"
-                                    on:click={startKwis}>Start kwis</button
+                                    on:click={startKwis}>start kwis</button
                                 >
                             {/if}
                         {/key}
-                    </div>
+                    </Gallery>
                 {:else if lokaleKwis.fase == "antwoordenVerzamelen"}
                     <div class="flex flex-col gap-6">
                         <div
                             id="vraagstelling"
-                            class="basis-1/3 rounded-md bg-white shadow-md p-6 flex flex-row items-center justify-center"
+                            class="basis-1/3 rounded-md bg-white shadow-md p-6 mb-6 flex flex-row items-center justify-center"
                         >
                             <h2
                                 class="text-3xl font-bold text-blue-800 drop-shadow-sm"
@@ -418,9 +481,21 @@
                         </div>
                     </div>
                 {:else if lokaleKwis.fase == "antwoordenPresenteren" || lokaleKwis.fase == "stemmen"}
+                    <div
+                        id="vraagstelling"
+                        class="basis-1/3 rounded-md bg-white shadow-md p-6 mb-6 flex flex-row items-center justify-center"
+                    >
+                        <h2
+                            class="text-3xl font-bold text-blue-800 drop-shadow-sm"
+                        >
+                            {lokaleKwis.vragen[
+                                lokaleKwis.huidigeVraagIdx
+                            ].tekst.replaceAll("{}", "_____")}
+                        </h2>
+                    </div>
                     {#if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
-                        <div class="flex flex-col gap-6 min-w-full">
-                            {#each antwoorden as antwoord}
+                        <Gallery class="grid-cols-5 gap-6">
+                            {#each antwoorden.toReversed() as antwoord}
                                 {#if antwoord.getoond}
                                     <div
                                         class="p-4 text-lg bg-white rounded-md min-w-full"
@@ -430,12 +505,12 @@
                                         }}
                                     >
                                         <p>
-                                            {vulTemplateIn(antwoord.data)}
+                                            {antwoord.data}
                                         </p>
                                     </div>
                                 {/if}
                             {/each}
-                        </div>
+                        </Gallery>
                     {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
                         <Gallery class="gap-4 grid-cols-4">
                             {#each antwoorden.toReversed() as antwoord}
@@ -459,10 +534,10 @@
                     {/if}
                 {:else if lokaleKwis.fase == "stemresulatenPresenteren"}
                     <div
-                        class="flex flex-row min-w-full gap-12 mb-12 justify-stretch"
+                        class="flex flex-row min-w-full gap-6 mb-12 justify-stretch"
                     >
                         <div
-                            class="rounded-md bg-white p-12 flex flex-col gap-3"
+                            class="rounded-md bg-white p-6 flex flex-col gap-3"
                         >
                             <h2 class="text-2xl font-bold text-blue-800 mb-6">
                                 Antwoorden
@@ -498,7 +573,7 @@
                             {/each}
                         </div>
                         <div
-                            class="rounded-md bg-white p-12 flex flex-col gap-3"
+                            class="rounded-md bg-white p-6 flex flex-col gap-3"
                         >
                             <h2 class="text-2xl font-bold text-blue-800 mb-6">
                                 Leaderboard
@@ -549,7 +624,7 @@
                             class="bg-wiskunde-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center"
                         >
                             <h3 class="text-xl">
-                                Team <span class="text-wiskunde-500 font-bold"
+                                Team <span class="text-wiskunde-700 font-bold"
                                     >Wiskunde</span
                                 >
                                 heeft {puntenVoorTeam(
@@ -563,7 +638,7 @@
                             class="bg-fysica-200 p-4 rounded-md flex flex-col gap-3 align-center items-center justify-center"
                         >
                             <h3 class="text-xl">
-                                Team <span class="text-fysica-500 font-bold"
+                                Team <span class="text-fysica-700 font-bold"
                                     >Fysica</span
                                 >
                                 heeft {puntenVoorTeam(
@@ -576,7 +651,9 @@
 
                     <div class="rounded-md bg-white p-12 flex flex-col gap-3">
                         {#each lokaleKwis.spelers.toSorted((a, b) => b.punten - a.punten) as speler}
-                            <div class={stijl(eigenSpelerStijl, speler.richting)}>
+                            <div
+                                class={stijl(eigenSpelerStijl, speler.richting)}
+                            >
                                 <p>{speler.naam}: {speler.punten}</p>
                             </div>
                         {/each}
@@ -675,7 +752,10 @@
                         <div class="flex flex-col columns-3xs gap-4">
                             {#each antwoorden as antwoord}
                                 <button
-                                    class={stijl(antwoordStemKnopStijl, richting)}
+                                    class={stijl(
+                                        antwoordStemKnopStijl,
+                                        richting,
+                                    )}
                                     disabled={antwoord.spelerId == socket.id}
                                     on:click={() => stem(antwoord.spelerId)}
                                 >
@@ -695,7 +775,10 @@
                         <Gallery class="gap-4 grid-cols-3">
                             {#each antwoorden.toReversed() as antwoord}
                                 <button
-                                    class={stijl(antwoordStemKnopStijl, richting)}
+                                    class={stijl(
+                                        antwoordStemKnopStijl,
+                                        richting,
+                                    )}
                                     disabled={antwoord.spelerId == socket.id}
                                     on:click={() => stem(antwoord.spelerId)}
                                 >
@@ -741,9 +824,7 @@
         {:else}
             <p>
                 Niet verbonden. De spelserver kan offline zijn, of je bent zelf
-                offline. Geen idee tbh. Let wel: als je dit bericht ziet terwijl
-                je net in het spel zat, ben je een beetje fucked. Vraag Simeon
-                even om dit te fiksen. Socket-id: {socket.id}.
+                offline.
             </p>
         {/if}
     </div>

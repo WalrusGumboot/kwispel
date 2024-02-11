@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
 
     socket.on("disconnect", (reden) => {
         ageer(socket.id, (gast) => {
-            if (reden == "ping timeout" || reden == "transport close") {
+            if (reden == "ping timeout" || reden == "transport close") { // kick valt hier niet onder
                 console.log(`[verbinding weggevallen] - ${socket.id.substring(16)} misschien recoverable (reden: ${reden})`)
                 console.log(`[                      ] - nu is ${gast.naam} een weeskind`)
                 if (gast.admin) {
@@ -102,6 +102,13 @@ io.on('connection', (socket) => {
                 }
             }
         })
+    })
+
+    socket.on("kickSpeler", (id: string) => {
+        kwis.spelers = kwis.spelers.filter((e) => e.id !== id)
+        socket.emit("kwisUpdate", kwis)
+        console.log(`[speler gekickt] ${id.substring(16)}`)
+        io.to(id).emit("kickMededeling")
     })
 
     socket.on("watZullenWeHerverbinden", (callback: (weeskinders: Gast[]) => void) => {
@@ -122,8 +129,8 @@ io.on('connection', (socket) => {
     // NAAMREGISTRATIE
     socket.on("registreerNaam", (naam: string, richting: Richting, callback: (ret: string) => void) => {
         kwis.spelers.push({ admin: false, naam, id: socket.id, punten: 0, richting })
-        console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}"`)
-        stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam);
+        console.log(`[naam geregistreerd] voor ${socket.id.substring(16)}: "${naam}" is team ${richting}`)
+        stuurNaarAdmin("naamRegistratieKennisgeving", socket.id, naam, richting);
         callback("naam geregistreerd.")
     })
 
