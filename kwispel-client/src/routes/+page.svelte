@@ -22,6 +22,8 @@
 
     import { Gallery } from "flowbite-svelte";
 
+    import { md5 } from "js-md5";
+
     $: lokaleKwis = standaardKwis;
 
     function ageer<T>(id: string, functie: (gast: Gast) => T): T {
@@ -61,8 +63,9 @@
 
     $: admin = false;
 
-    socket.on("adminKennisgeving", () => {
+    socket.on("adminKennisgeving", (kwis: Kwis) => {
         admin = true;
+        integreerKwis(kwis);
     });
 
     // socket.on("nieuweSpelerKennisgeving", (id: string) => {
@@ -321,6 +324,13 @@
 
     let adminPanel = false;
     let adminPanelBreedte;
+
+    let ingegevenWachtwoord: string = "";
+    function login() {
+        if (md5(ingegevenWachtwoord) == "c279875288880a9ff220ed47fbf35037") {
+            socket.emit("ikWilAdminBarmanHebdeGijMijNietGeheurd");
+        }
+    }
 
     function togglePaneel() {
         adminPanel = !adminPanel;
@@ -682,7 +692,7 @@
                     >
                 </div>
                 <div
-                    class="bg-white rounded-md shadow-md p-4 max-w-full flex flex-col gap-4"
+                    class="bg-white rounded-md shadow-md p-4 max-w-full flex flex-col gap-4 mb-6"
                 >
                     <p>
                         Herverbind als je eerder de verbinding bent
@@ -710,6 +720,16 @@
                             {/each}
                         {/if}
                     {/if}
+                </div>
+                <div
+                    class="bg-white rounded-md shadow-md p-4 flex flex-col min-w-max gap-4"
+                >
+                    <p>Admin login</p>
+                    <input type="password" bind:value={ingegevenWachtwoord} />
+                    <button
+                        on:click={login}
+                        class="rounded-md text-white bg-blue-500 p-3 hover:bg-blue-800 transition-all">Log in</button
+                    >
                 </div>
             {:else if lokaleKwis.fase == "nogNietBegonnen"}
                 <h3 class="text-xl mb-3">Welkom, <b>{teamNaam}</b>.</h3>

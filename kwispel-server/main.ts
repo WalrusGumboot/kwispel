@@ -58,11 +58,16 @@ let admin: Gast;
 io.on('connection', (socket) => {
     // CONNECTIELOGICA
     console.log(`[nieuwe verbinding] ${socket.id.substring(16)}`);
-    if (admin === undefined) {
+    // if (admin === undefined) {
+    //     admin = { id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined };
+    //     socket.emit("adminKennisgeving");
+    //     console.log(' ↳ [admin geregistreerd]');
+    // } 
+
+    socket.on("ikWilAdminBarmanHebdeGijMijNietGeheurd", () => {
+        socket.emit("adminKennisgeving", kwis)
         admin = { id: socket.id, admin: true, naam: "ADMIN", punten: 0, richting: undefined };
-        socket.emit("adminKennisgeving");
-        console.log(' ↳ [admin geregistreerd]');
-    } 
+    })
     // else {
     //     // we gaan kijken of er een herregistratie na het wegvallen van een verbinding nodig is
     //     let mogelijksWeeskind = weeskinders.find((e) => e.id === socket.id)
@@ -89,7 +94,7 @@ io.on('connection', (socket) => {
     })
 
     socket.on("disconnect", (reden) => {
-        if (! kwis.spelers.map(e => e.id).includes(socket.id)) {
+        if (!kwis.spelers.map(e => e.id).includes(socket.id)) {
             // we proberen iets te doen met een speler die niet meer in de lijst staat
             console.log(`[iets met foute speler] id ${socket.id} bestaat niet meer in de spelerlijst`)
             return;
