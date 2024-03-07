@@ -150,6 +150,7 @@ io.on('connection', (socket) => {
         if (antwoorden.length === kwis.spelers.length) {
             kwis.fase = "antwoordenPresenteren";
             io.emit("kwisUpdate", kwis);
+            io.except(admin.id).emit("declareerAntwoorden", antwoorden);
         }
 
         callback()
@@ -158,7 +159,6 @@ io.on('connection', (socket) => {
     socket.on("klaarVoorStemmen", () => {
         console.log("[klaar voor stemming]")
         kwis.fase = "stemmen";
-        io.except(admin.id).emit("declareerAntwoorden", antwoorden);
         io.emit("kwisUpdate", kwis)
     })
 
