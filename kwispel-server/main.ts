@@ -89,6 +89,11 @@ io.on('connection', (socket) => {
     })
 
     socket.on("disconnect", (reden) => {
+        if (! kwis.spelers.map(e => e.id).includes(socket.id)) {
+            // we proberen iets te doen met een speler die niet meer in de lijst staat
+            console.log(`[iets met foute speler] id ${socket.id} bestaat niet meer in de spelerlijst`)
+            return;
+        }
         ageer(socket.id, (gast) => {
             if (reden == "ping timeout" || reden == "transport close") { // kick valt hier niet onder
                 console.log(`[verbinding weggevallen] - ${socket.id.substring(16)} misschien recoverable (reden: ${reden})`)
