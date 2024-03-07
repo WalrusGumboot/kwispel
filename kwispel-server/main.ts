@@ -142,7 +142,7 @@ io.on('connection', (socket) => {
         console.log("[kwisstatus veranderd] kwis gestart");
     })
 
-    socket.on("verstuurAntwoord", (antwoord: Antwoord) => {
+    socket.on("verstuurAntwoord", (antwoord: Antwoord, callback: () => void) => {
         console.log(`[antwoord gekregen]: ${socket.id.substring(16)} gaf ${antwoord}`);
         antwoorden.push(antwoord)
         stuurNaarAdmin("antwoordKennisgeving", antwoord);
@@ -151,6 +151,8 @@ io.on('connection', (socket) => {
             kwis.fase = "antwoordenPresenteren";
             io.emit("kwisUpdate", kwis);
         }
+
+        callback()
     })
 
     socket.on("klaarVoorStemmen", () => {

@@ -126,7 +126,6 @@
             gestemd = false;
         }
 
-
         lokaleKwis = nieuweStatus;
         tekstPlaceholders = extraheerPlaceholders();
     }
@@ -209,6 +208,7 @@
     }
 
     let antwoordVerstuurd = false;
+    let antwoordVerstuurPromise: Promise<void>;
 
     let tekstPlaceholders = [] as number[];
     let tekstInvoeren = [] as string[];
@@ -217,7 +217,7 @@
     function fotoInstelCallback(data: string) {
         fotoData = data;
         console.log("foto ingesteld");
-        verstuurAntwoord();
+        antwoordVerstuurPromise = verstuurAntwoord();
     }
 
     function extraheerPlaceholders(): number[] {
@@ -240,7 +240,7 @@
         return placeholders;
     }
 
-    function verstuurAntwoord() {
+    async function verstuurAntwoord(): Promise<void> {
         antwoordVerstuurd = true;
         let teVersturenObject;
 
@@ -256,7 +256,7 @@
 
         console.log(teVersturenObject);
 
-        socket.emit("verstuurAntwoord", {
+        return socket.emitWithAck("verstuurAntwoord", {
             getoond: false,
             spelerId: socket.id,
             stemmen: 0,
@@ -722,10 +722,19 @@
                     Tijd om een antwoord te verzinnen, <b>{teamNaam}</b>.
                 </h3>
                 {#if antwoordVerstuurd}
-                    <p>
-                        Bedankt voor je antwoord! Nu is het wachten tot de rest
-                        klaar is.
-                    </p>
+                    {#await antwoordVerstuurPromise}
+                        <img
+                            src={loadingImg}
+                            alt="een laadicoontje"
+                            class="aspect-square w-12"
+                        />
+                        Je antwoord wordt geüpload...
+                    {:then}
+                        <p>
+                            Bedankt voor je antwoord! Nu is het wachten tot de
+                            rest klaar is.
+                        </p>
+                    {/await}
                 {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "tekst"}
                     <div class="flex flex-col gap-4">
                         {#each tekstPlaceholders as item}
@@ -737,7 +746,9 @@
                         {/each}
                         <button
                             class={stijl(knopStijl, richting)}
-                            on:click={verstuurAntwoord}>Dien antwoord in</button
+                            on:click={() =>
+                                (antwoordVerstuurPromise = verstuurAntwoord())}
+                            >Dien antwoord in</button
                         >
                     </div>
                 {:else if lokaleKwis.vragen[lokaleKwis.huidigeVraagIdx].soort == "foto"}
